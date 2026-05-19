@@ -20,7 +20,7 @@ import {
   DropdownMenuSeparator
 } from "@/components/ui/dropdown-menu";
 import ClientRoleProtector from "@/components/ClientRoleProtector";
-import { getChapters, createChapter, updateChapter, deleteChapter as deleteChapterFS, getNovel } from "@/lib/firestore";
+import { getChapters, createChapter, updateChapter, deleteChapter as deleteChapterFS, getNovel } from "@/actions/novels";
 import { useToast } from "@/hooks/use-toast";
 
 const initialMockNovelTitle = "The Crimson Labyrinth";
@@ -61,14 +61,14 @@ function WriteChapterContent() {
   useEffect(() => {
     if (!novelId) return;
     setLoadingChapters(true);
-    Promise.all([getNovel(novelId), getChapters(novelId)])
+    Promise.all([getNovel(Number(novelId)), getChapters(Number(novelId))])
       .then(([novel, fetchedChapters]) => {
         if (novel) setNovelTitle(novel.title);
         const mapped: Chapter[] = fetchedChapters.map((ch) => ({
-          id: ch.id ?? '',
+          id: String(ch.id ?? ''),
           title: ch.title,
           words: ch.wordCount,
-          date: ch.updatedAt ? new Date((ch.updatedAt as { seconds: number }).seconds * 1000).toLocaleString() : 'Unpublished',
+          date: ch.updatedAt ? new Date(ch.updatedAt as Date).toLocaleString() : 'Unpublished',
           content: ch.content,
           isPaid: ch.isPaid,
           coinCost: ch.coinCost,
@@ -120,19 +120,19 @@ function WriteChapterContent() {
     try {
       // Check if this is a new (unsaved) chapter
       if (selectedChapterId.startsWith('new_')) {
-        const newId = await createChapter(novelId, {
+        const newChap = await createChapter({
+          novelId: Number(novelId),
           title: selectedChapter?.title || 'Untitled Chapter',
           content: chapterContent,
           chapterNumber: chapters.length,
           isPaid: selectedChapter?.isPaid ?? false,
           coinCost: selectedChapter?.coinCost ?? 0,
           wordCount: currentWordCount,
-          status: 'draft',
         });
-        setChapters(prev => prev.map(ch => ch.id === selectedChapterId ? { ...ch, id: newId, words: currentWordCount } : ch));
-        setSelectedChapterId(newId);
+        setChapters(prev => prev.map(ch => ch.id === selectedChapterId ? { ...ch, id: String(newChap.id), words: currentWordCount } : ch));
+        setSelectedChapterId(String(newChap.id));
       } else {
-        await updateChapter(novelId, selectedChapterId, {
+        await updateChapter(Number(selectedChapterId), {
           content: chapterContent,
           wordCount: currentWordCount,
         });
@@ -153,7 +153,7 @@ function WriteChapterContent() {
     }
     setIsSaving(true);
     try {
-      await updateChapter(novelId, selectedChapterId, { status: 'published' });
+      await updateChapter(Number(selectedChapterId), { status: 'published' });
       toast({ title: "Chapter published!", description: "Readers can now see this chapter." });
     } catch {
       toast({ title: "Error", description: "Failed to publish chapter.", variant: "destructive" });
@@ -186,13 +186,13 @@ function WriteChapterContent() {
       const chapter = chapters.find(c => c.id === chapterId);
       const newIsPaid = !chapter?.isPaid;
       if (!chapterId.startsWith('new_')) {
-        await updateChapter(novelId, chapterId, { isPaid: newIsPaid, coinCost: newIsPaid ? 10 : 0 });
+        await updateChapter(Number(chapterId), { isPaid: newIsPaid, coinCost: newIsPaid ? 10 : 0 });
       }
       setChapters(prev => prev.map(ch => ch.id === chapterId ? { ...ch, isPaid: newIsPaid, coinCost: newIsPaid ? (ch.coinCost || 10) : 0 } : ch));
     } else if (option === 'delete') {
       if (confirm(`Delete "${chapterTitle}"? This cannot be undone.`)) {
         if (!chapterId.startsWith('new_')) {
-          await deleteChapterFS(novelId, chapterId);
+          await deleteChapterFS(Number(chapterId));
         }
         setChapters(prev => {
           const updated = prev.filter(ch => ch.id !== chapterId);

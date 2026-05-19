@@ -1,52 +1,52 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
 import { Mail, Send, Search, Users, MessageCircle, LogIn } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import React, { useEffect, useState, useRef } from "react";
-import { useAuth } from "@/contexts/AuthContext";
-import {
-  getConversations,
-  sendMessage,
-  subscribeToMessages,
-  Conversation,
-  Message,
-} from "@/lib/firestore";
+import React, { useEffect, useState, useRef, useCallback } from "react";
+import { useUser } from "@clerk/nextjs";
+import { getConversations, getMessages, sendMessage, ConversationWithMeta, Message } from "@/actions/messages";
 import Link from "next/link";
 
 export default function MessagesPage() {
-  const { user, userProfile, isLoading } = useAuth();
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [selectedConvo, setSelectedConvo] = useState<Conversation | null>(null);
+  const { user, isSignedIn, isLoaded } = useUser();
+  const [conversations, setConversations] = useState<ConversationWithMeta[]>([]);
+  const [selectedConvo, setSelectedConvo] = useState<ConversationWithMeta | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [messageText, setMessageText] = useState("");
   const [loadingConvos, setLoadingConvos] = useState(false);
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const pollRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     document.title = "My Messages | Novelosity";
   }, []);
 
   useEffect(() => {
-    if (!user) return;
+    if (!isSignedIn) return;
     setLoadingConvos(true);
-    getConversations(user.uid)
+    getConversations()
       .then(setConversations)
       .catch(console.error)
       .finally(() => setLoadingConvos(false));
-  }, [user]);
+  }, [isSignedIn]);
 
+  const loadMessages = useCallback(async (convoId: number) => {
+    const msgs = await getMessages(convoId);
+    setMessages(msgs);
+  }, []);
+
+  // Poll for new messages every 5 seconds when a conversation is selected
   useEffect(() => {
-    if (!selectedConvo?.id) return;
-    const unsub = subscribeToMessages(selectedConvo.id, (msgs) => {
-      setMessages(msgs);
-    });
-    return () => unsub();
-  }, [selectedConvo?.id]);
+    if (!selectedConvo) return;
+    loadMessages(selectedConvo.id);
+    pollRef.current = setInterval(() => loadMessages(selectedConvo.id), 5000);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [selectedConvo, loadMessages]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -54,16 +54,11 @@ export default function MessagesPage() {
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!messageText.trim() || !selectedConvo?.id || !user || !userProfile) return;
+    if (!messageText.trim() || !selectedConvo) return;
     setSending(true);
     try {
-      await sendMessage(
-        selectedConvo.id,
-        user.uid,
-        userProfile.displayName,
-        userProfile.photoURL ?? '',
-        messageText.trim()
-      );
+      const msg = await sendMessage(selectedConvo.id, messageText.trim());
+      setMessages((prev) => [...prev, msg]);
       setMessageText("");
     } catch (err) {
       console.error(err);
@@ -72,15 +67,11 @@ export default function MessagesPage() {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-      </div>
-    );
+  if (!isLoaded) {
+    return <div className="flex items-center justify-center min-h-[400px]"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
   }
 
-  if (!user) {
+  if (!isSignedIn) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-8">
         <LogIn className="h-16 w-16 text-muted-foreground mb-4" />
@@ -89,16 +80,6 @@ export default function MessagesPage() {
       </div>
     );
   }
-
-  const getOtherParticipantName = (convo: Conversation) => {
-    const otherId = convo.participantIds.find((id) => id !== user.uid);
-    return otherId ? convo.participantNames[otherId] : 'Unknown';
-  };
-
-  const getOtherParticipantPhoto = (convo: Conversation) => {
-    const otherId = convo.participantIds.find((id) => id !== user.uid);
-    return otherId ? convo.participantPhotos[otherId] : '';
-  };
 
   return (
     <div className="h-full flex flex-col">
@@ -124,35 +105,29 @@ export default function MessagesPage() {
             </CardHeader>
             <CardContent className="p-0 flex-1 overflow-y-auto">
               {loadingConvos ? (
-                <div className="flex justify-center p-8">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
-                </div>
+                <div className="flex justify-center p-8"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" /></div>
               ) : conversations.length === 0 ? (
-                <p className="p-4 text-center text-sm text-muted-foreground">No conversations yet. Start one by visiting a user&apos;s profile.</p>
+                <p className="p-4 text-center text-sm text-muted-foreground">No conversations yet. Start one by visiting another user&apos;s profile.</p>
               ) : (
                 <div className="divide-y">
-                  {conversations.map((convo) => {
-                    const name = getOtherParticipantName(convo);
-                    const photo = getOtherParticipantPhoto(convo);
-                    return (
-                      <div
-                        key={convo.id}
-                        className={`p-3 hover:bg-muted/50 cursor-pointer ${selectedConvo?.id === convo.id ? 'bg-muted' : ''}`}
-                        onClick={() => setSelectedConvo(convo)}
-                      >
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-10 w-10">
-                            <AvatarImage src={photo} alt={name} />
-                            <AvatarFallback>{name[0]?.toUpperCase()}</AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-semibold text-sm">{name}</p>
-                            <p className="text-xs text-muted-foreground truncate">{convo.lastMessage || 'No messages yet'}</p>
-                          </div>
+                  {conversations.map((convo) => (
+                    <div
+                      key={convo.id}
+                      className={`p-3 hover:bg-muted/50 cursor-pointer ${selectedConvo?.id === convo.id ? 'bg-muted' : ''}`}
+                      onClick={() => setSelectedConvo(convo)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-10 w-10">
+                          <AvatarImage src={convo.otherUserPhoto} alt={convo.otherUserName} />
+                          <AvatarFallback>{convo.otherUserName[0]?.toUpperCase()}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-sm">{convo.otherUserName}</p>
+                          <p className="text-xs text-muted-foreground truncate">{convo.lastMessage || 'No messages yet'}</p>
                         </div>
                       </div>
-                    );
-                  })}
+                    </div>
+                  ))}
                 </div>
               )}
             </CardContent>
@@ -165,10 +140,10 @@ export default function MessagesPage() {
                 <CardHeader className="border-b p-4">
                   <div className="flex items-center gap-3">
                     <Avatar className="h-10 w-10">
-                      <AvatarImage src={getOtherParticipantPhoto(selectedConvo)} alt={getOtherParticipantName(selectedConvo)} />
-                      <AvatarFallback>{getOtherParticipantName(selectedConvo)[0]?.toUpperCase()}</AvatarFallback>
+                      <AvatarImage src={selectedConvo.otherUserPhoto} alt={selectedConvo.otherUserName} />
+                      <AvatarFallback>{selectedConvo.otherUserName[0]?.toUpperCase()}</AvatarFallback>
                     </Avatar>
-                    <CardTitle className="text-lg font-headline">{getOtherParticipantName(selectedConvo)}</CardTitle>
+                    <CardTitle className="text-lg font-headline">{selectedConvo.otherUserName}</CardTitle>
                   </div>
                 </CardHeader>
                 <CardContent className="flex-1 p-4 space-y-3 overflow-y-auto bg-muted/20 max-h-[400px]">
@@ -176,7 +151,7 @@ export default function MessagesPage() {
                     <p className="text-center text-sm text-muted-foreground py-8">No messages yet. Say hello!</p>
                   ) : (
                     messages.map((msg) => {
-                      const isMe = msg.senderId === user.uid;
+                      const isMe = msg.senderId === user?.id;
                       return (
                         <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                           <div className={`p-3 rounded-lg max-w-[70%] ${isMe ? 'bg-primary text-primary-foreground' : 'bg-background border'}`}>
@@ -196,12 +171,7 @@ export default function MessagesPage() {
                       rows={1}
                       value={messageText}
                       onChange={(e) => setMessageText(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          handleSend(e);
-                        }
-                      }}
+                      onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(e); } }}
                     />
                     <Button type="submit" size="icon" disabled={sending || !messageText.trim()}>
                       <Send className="h-5 w-5" />

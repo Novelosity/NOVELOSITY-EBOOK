@@ -3,19 +3,22 @@
 import { Button } from "@/components/ui/button";
 import { LogIn, LogOut } from "lucide-react";
 import Link from "next/link";
-import { useAuth } from "@/contexts/AuthContext";
+import { useClerk, useUser } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
 
 export function SidebarLoginButton() {
-  const { user, signOut, isLoading } = useAuth();
+  const { isSignedIn, isLoaded } = useUser();
+  const { signOut } = useClerk();
+  const router = useRouter();
 
-  if (isLoading) return null;
+  if (!isLoaded) return null;
 
-  if (user) {
+  if (isSignedIn) {
     return (
       <Button
         variant="ghost"
         className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-        onClick={signOut}
+        onClick={() => signOut(() => router.push('/login'))}
       >
         <LogOut className="mr-2 h-4 w-4" />
         Sign Out

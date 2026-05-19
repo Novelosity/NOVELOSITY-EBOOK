@@ -20,10 +20,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import ClientRoleProtector from "@/components/ClientRoleProtector";
-import { useAuth } from "@/contexts/AuthContext";
-import { createNovel } from "@/lib/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { storage } from "@/lib/firebase";
+import { useUser } from "@clerk/nextjs";
+import { createNovel } from "@/actions/novels";
+import { put } from "@vercel/blob";
 import { useToast } from "@/hooks/use-toast";
 
 const novelFormSchema = z.object({
@@ -49,7 +48,7 @@ const tagCategories = {
 
 function CreateNovelContent() {
   const router = useRouter();
-  const { user, userProfile } = useAuth();
+  const { user } = useUser();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
@@ -101,7 +100,7 @@ function CreateNovelContent() {
   };
 
   const onSubmit = async (data: NovelFormData) => {
-    if (!user || !userProfile) {
+    if (!user) {
       toast({ title: "Not signed in", description: "Please sign in to create a novel.", variant: "destructive" });
       return;
     }
@@ -109,24 +108,19 @@ function CreateNovelContent() {
     try {
       let coverImageUrl = 'https://placehold.co/600x800.png';
       if (coverFile) {
-        const storageRef = ref(storage, `covers/${user.uid}/${Date.now()}_${coverFile.name}`);
-        const snapshot = await uploadBytes(storageRef, coverFile);
-        coverImageUrl = await getDownloadURL(snapshot.ref);
+        const blob = await put(`covers/${user.id}/${Date.now()}_${coverFile.name}`, coverFile, { access: 'public' });
+        coverImageUrl = blob.url;
       }
-      const tagsArray = data.tags ? data.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
-      const novelId = await createNovel({
+      const novel = await createNovel({
         title: data.bookTitle,
-        authorId: user.uid,
-        authorName: userProfile.displayName,
         synopsis: data.synopsis,
         genre: data.genre,
-        tags: tagsArray,
+        tags: data.tags ?? '',
         coverImageUrl,
-        status: 'draft',
         contentRating: data.contentRating,
       });
       toast({ title: "Novel created!", description: "Now add your first chapter." });
-      router.push(`/author/write/${novelId}`);
+      router.push(`/author/write/${novel.id}`);
     } catch (err) {
       console.error(err);
       toast({ title: "Error", description: "Failed to create novel. Please try again.", variant: "destructive" });

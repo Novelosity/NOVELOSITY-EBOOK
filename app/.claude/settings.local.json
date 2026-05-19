@@ -6,7 +6,14 @@
       "Bash(npm run:*)",
       "Bash(echo \"BUILD_EXIT: $?\")",
       "Bash(where node:*)",
-      "Bash(npm --version)"
+      "Bash(npm --version)",
+      "Bash(winget install:*)",
+      "Bash(choco install:*)",
+      "Bash(scoop install:*)",
+      "Bash(cd /tmp)",
+      "Bash(unzip -o gh.zip -d gh_extracted)",
+      "Bash(GH=/tmp/gh_extracted/bin/gh.exe)",
+      "Bash(\"$GH\" --version)"
     ]
   }
 }

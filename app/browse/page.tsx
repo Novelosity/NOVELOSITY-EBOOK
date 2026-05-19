@@ -12,7 +12,7 @@ import { SearchIcon, X, Library, Star, ListFilter } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { getPublishedNovels, Novel as FirestoreNovel } from "@/lib/firestore";
+import { getPublishedNovels, Novel as NovelData } from "@/actions/novels";
 
 interface Book {
   id: string;
@@ -47,14 +47,14 @@ export default function BrowsePage() {
   // Load real novels from Firestore, fall back to mock data if empty
   useEffect(() => {
     getPublishedNovels(50)
-      .then((novels: FirestoreNovel[]) => {
+      .then((novels: NovelData[]) => {
         if (novels.length > 0) {
           const mapped: Book[] = novels.map((n) => ({
-            id: n.id ?? '',
+            id: String(n.id),
             title: n.title,
             author: n.authorName,
             genre: [n.genre],
-            tags: n.tags,
+            tags: (n.tags ?? '').split(',').map((t: string) => t.trim()).filter(Boolean),
             coverImageUrl: n.coverImageUrl || 'https://placehold.co/300x450.png',
             dataAiHint: n.genre,
             completionStatus: (n.status === 'published' ? 'Ongoing' : 'Ongoing') as "Ongoing" | "Completed",

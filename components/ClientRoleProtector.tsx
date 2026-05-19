@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRole, UserRole } from '@/contexts/RoleContext';
-import { useAuth } from '@/contexts/AuthContext';
+import { useUser } from '@clerk/nextjs';
 import { ShieldAlert, LogIn } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -21,13 +21,13 @@ export default function ClientRoleProtector({
   requireAuth = true,
 }: ClientRoleProtectorProps) {
   const { currentRole, isLoading: roleLoading } = useRole();
-  const { user, isLoading: authLoading } = useAuth();
+  const { isSignedIn, isLoaded } = useUser();
 
   useEffect(() => {
     if (pageTitle) document.title = `${pageTitle} | Novelosity`;
   }, [pageTitle]);
 
-  if (authLoading || roleLoading) {
+  if (!isLoaded || roleLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
@@ -35,7 +35,7 @@ export default function ClientRoleProtector({
     );
   }
 
-  if (requireAuth && !user) {
+  if (requireAuth && !isSignedIn) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-8">
         <LogIn className="h-16 w-16 text-muted-foreground mb-4" />
@@ -57,8 +57,7 @@ export default function ClientRoleProtector({
         <ShieldAlert className="h-16 w-16 text-destructive mb-4" />
         <h2 className="text-2xl font-headline mb-2">Access Denied</h2>
         <p className="text-muted-foreground mb-6 max-w-md">
-          This area requires the{' '}
-          <span className="font-semibold capitalize">{allowedRoles.join(' or ')}</span> role.
+          This area requires the <span className="font-semibold capitalize">{allowedRoles.join(' or ')}</span> role.
           Your current role is <span className="font-semibold capitalize">{currentRole}</span>.
         </p>
         <div className="flex gap-3">

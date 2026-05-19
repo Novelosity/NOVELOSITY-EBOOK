@@ -42,8 +42,8 @@ import {
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import ClientRoleProtector from "@/components/ClientRoleProtector";
-import { useAuth } from "@/contexts/AuthContext";
-import { getNovelsByAuthor, updateNovel, deleteNovel, Novel } from "@/lib/firestore";
+import { useUser } from "@clerk/nextjs";
+import { getNovelsByAuthor, updateNovel, deleteNovel, Novel } from "@/actions/novels";
 import { useToast } from "@/hooks/use-toast";
 
 interface AuthorStory {
@@ -100,7 +100,7 @@ const initialMockAuthorStories: AuthorStory[] = [
 
 function AuthorDashboardContent() {
   const router = useRouter();
-  const { user, userProfile } = useAuth();
+  const { user } = useUser();
   const { toast } = useToast();
   const [selectedDate, setSelectedDate] = React.useState<Date | undefined>();
   const [authorStories, setAuthorStories] = useState<AuthorStory[]>([]);
@@ -113,10 +113,10 @@ function AuthorDashboardContent() {
   useEffect(() => {
     if (!user) return;
     setLoadingStories(true);
-    getNovelsByAuthor(user.uid)
+    getNovelsByAuthor(user.id)
       .then((novels: Novel[]) => {
         const mapped: AuthorStory[] = novels.map((n) => ({
-          id: n.id ?? '',
+          id: String(n.id ?? ''),
           title: n.title,
           coverImageUrl: n.coverImageUrl || 'https://placehold.co/300x450.png',
           dataAiHint: n.genre,
@@ -124,7 +124,7 @@ function AuthorDashboardContent() {
           views: n.views,
           words: n.wordCount,
           status: n.status === 'published' ? 'Ongoing' : 'Ongoing',
-          lastUpdate: n.updatedAt ? new Date((n.updatedAt as { seconds: number })?.seconds * 1000).toLocaleDateString() : 'Recently',
+          lastUpdate: n.updatedAt ? new Date(n.updatedAt as Date).toLocaleDateString() : 'Recently',
           contractStatus: 'None',
         }));
         setAuthorStories(mapped);
@@ -138,7 +138,7 @@ function AuthorDashboardContent() {
       prev.map(s => s.id === storyId ? { ...s, contractStatus: "PendingReview" as const } : s)
     );
     try {
-      await updateNovel(storyId, { status: 'submitted' });
+      await updateNovel(Number(storyId), { status: 'submitted' });
       const story = authorStories.find(s => s.id === storyId);
       toast({ title: "Contract application submitted", description: `"${story?.title}" has been submitted for review.` });
     } catch {
@@ -149,7 +149,7 @@ function AuthorDashboardContent() {
   const handleDeleteStory = async (storyId: string) => {
     if (!confirm("Are you sure you want to delete this novel? This cannot be undone.")) return;
     try {
-      await deleteNovel(storyId);
+      await deleteNovel(Number(storyId));
       setAuthorStories(prev => prev.filter(s => s.id !== storyId));
       toast({ title: "Novel deleted" });
     } catch {

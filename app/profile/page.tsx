@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useRole } from "@/contexts/RoleContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUser } from "@clerk/nextjs";
 
 const coinPackages = [
   { id: "pkg1", coins: 100, price: "$0.99", description: "Starter Pack" },
@@ -30,10 +31,12 @@ const profileSections = [
 
 export default function ProfilePage() {
   const { currentRole, setCurrentRole } = useRole();
-  const { user, userProfile, updateCoins, isLoading } = useAuth();
+  const { userProfile, addCoins, isLoading } = useAuth();
+  const { user, isSignedIn } = useUser();
   const { toast } = useToast();
   const [isBuyCoinsOpen, setIsBuyCoinsOpen] = useState(false);
   const [selectedPackageId, setSelectedPackageId] = useState<string>(coinPackages[0].id);
+  const [purchasing, setPurchasing] = useState(false);
 
   useEffect(() => {
     document.title = "Your Profile | Novelosity";
@@ -47,20 +50,23 @@ export default function ProfilePage() {
   const handleBuyCoins = async () => {
     const pkg = coinPackages.find((p) => p.id === selectedPackageId);
     if (!pkg) return;
-    await updateCoins(pkg.coins);
-    toast({ title: "Purchase Successful!", description: `Added ${pkg.coins} coins to your wallet.` });
-    setIsBuyCoinsOpen(false);
+    setPurchasing(true);
+    try {
+      await addCoins(pkg.coins);
+      toast({ title: "Purchase Successful!", description: `Added ${pkg.coins} coins to your wallet.` });
+      setIsBuyCoinsOpen(false);
+    } catch {
+      toast({ title: "Error", description: "Purchase failed. Please try again.", variant: "destructive" });
+    } finally {
+      setPurchasing(false);
+    }
   };
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-      </div>
-    );
+    return <div className="flex items-center justify-center min-h-[400px]"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
   }
 
-  if (!user) {
+  if (!isSignedIn) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-8">
         <LogIn className="h-16 w-16 text-muted-foreground mb-4" />
@@ -71,13 +77,8 @@ export default function ProfilePage() {
     );
   }
 
-  const initials = userProfile?.displayName
-    ? userProfile.displayName.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
-    : 'U';
-
-  const joinDate = userProfile?.joinedAt
-    ? `Joined ${new Date((userProfile.joinedAt as { seconds: number })?.seconds * 1000).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`
-    : 'Recently joined';
+  const initials = (user?.firstName?.[0] ?? '') + (user?.lastName?.[0] ?? '') || 'U';
+  const joinDate = user?.createdAt ? `Joined ${new Date(user.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}` : 'Recently joined';
 
   return (
     <div className="container mx-auto py-8 px-4 md:px-6">
@@ -85,15 +86,15 @@ export default function ProfilePage() {
         <Card className="shadow-lg">
           <CardContent className="p-6 flex flex-col md:flex-row items-center gap-6">
             <Avatar className="w-24 h-24 md:w-32 md:h-32 border-4 border-primary shadow-md">
-              <AvatarImage src={userProfile?.photoURL ?? ''} alt={userProfile?.displayName ?? 'User'} />
+              <AvatarImage src={user?.imageUrl ?? ''} alt={user?.fullName ?? 'User'} />
               <AvatarFallback className="text-4xl">{initials}</AvatarFallback>
             </Avatar>
             <div className="text-center md:text-left">
-              <h1 className="text-3xl md:text-4xl font-headline text-primary mb-1">{userProfile?.displayName ?? 'User'}</h1>
-              <p className="text-muted-foreground mb-1">{userProfile?.email}</p>
+              <h1 className="text-3xl md:text-4xl font-headline text-primary mb-1">{user?.fullName ?? userProfile?.displayName ?? 'User'}</h1>
+              <p className="text-muted-foreground mb-1">{user?.primaryEmailAddress?.emailAddress}</p>
               <p className="text-sm text-muted-foreground">{joinDate} · Role: <span className="font-semibold capitalize">{currentRole}</span></p>
             </div>
-            <div className="md:ml-auto flex flex-col sm:flex-row gap-2 mt-4 md:mt-0">
+            <div className="md:ml-auto">
               <Button variant="outline" asChild>
                 <Link href="/settings"><Edit3 className="mr-2 h-4 w-4" /> Edit Profile</Link>
               </Button>
@@ -132,13 +133,13 @@ export default function ProfilePage() {
         {currentRole === 'author' || currentRole === 'editor' || currentRole === 'admin' ? (
           <Card className="hover:shadow-xl transition-shadow duration-300">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-xl font-headline">Author Tools & Earnings</CardTitle>
+              <CardTitle className="text-xl font-headline">Author Tools</CardTitle>
               <DollarSign className="h-6 w-6 text-primary" />
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground mb-4">Manage your stories and track your earnings.</p>
               <Button variant="default" className="w-full" asChild>
-                <Link href="/author-dashboard"><Edit className="mr-2 h-4 w-4" /> Go to Author Dashboard</Link>
+                <Link href="/author-dashboard"><Edit className="mr-2 h-4 w-4" /> Author Dashboard</Link>
               </Button>
             </CardContent>
           </Card>
@@ -149,9 +150,7 @@ export default function ProfilePage() {
               <PenTool className="h-6 w-6 text-primary" />
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground mb-4">
-                Ready to publish your work and reach readers? Become an author on Novelosity.
-              </p>
+              <p className="text-sm text-muted-foreground mb-4">Ready to publish your work and reach readers?</p>
               <Button className="w-full" onClick={handleBecomeAuthor}>Become an Author</Button>
             </CardContent>
           </Card>
@@ -186,7 +185,6 @@ export default function ProfilePage() {
         </Card>
       </div>
 
-      {/* Buy Coins Modal */}
       <Dialog open={isBuyCoinsOpen} onOpenChange={setIsBuyCoinsOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -208,10 +206,10 @@ export default function ProfilePage() {
             ))}
           </RadioGroup>
           <DialogFooter className="flex gap-2 justify-end">
-            <DialogClose asChild>
-              <Button type="button" variant="outline">Cancel</Button>
-            </DialogClose>
-            <Button type="button" onClick={handleBuyCoins}>Confirm Purchase</Button>
+            <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
+            <Button type="button" onClick={handleBuyCoins} disabled={purchasing}>
+              {purchasing ? "Processing..." : "Confirm Purchase"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
