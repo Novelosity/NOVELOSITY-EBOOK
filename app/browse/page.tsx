@@ -11,7 +11,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { SearchIcon, X, Library, Star, ListFilter } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge"; 
+import { Badge } from "@/components/ui/badge";
+import { getPublishedNovels, Novel as FirestoreNovel } from "@/lib/firestore";
 
 interface Book {
   id: string;
@@ -41,6 +42,29 @@ export default function BrowsePage() {
     document.title = "Browse Books | Novelosity";
   }, []);
 
+  const [allBooksData, setAllBooksData] = useState<Book[]>(allBooks);
+
+  // Load real novels from Firestore, fall back to mock data if empty
+  useEffect(() => {
+    getPublishedNovels(50)
+      .then((novels: FirestoreNovel[]) => {
+        if (novels.length > 0) {
+          const mapped: Book[] = novels.map((n) => ({
+            id: n.id ?? '',
+            title: n.title,
+            author: n.authorName,
+            genre: [n.genre],
+            tags: n.tags,
+            coverImageUrl: n.coverImageUrl || 'https://placehold.co/300x450.png',
+            dataAiHint: n.genre,
+            completionStatus: (n.status === 'published' ? 'Ongoing' : 'Ongoing') as "Ongoing" | "Completed",
+          }));
+          setAllBooksData(mapped);
+        }
+      })
+      .catch(console.error);
+  }, []);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedGenre, setSelectedGenre] = useState<string | undefined>(undefined);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -48,7 +72,7 @@ export default function BrowsePage() {
   const [filteredBooks, setFilteredBooks] = useState<Book[]>(allBooks);
 
   useEffect(() => {
-    let books = allBooks;
+    let books = allBooksData;
     if (searchTerm) {
       books = books.filter(book => 
         book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -65,7 +89,7 @@ export default function BrowsePage() {
       books = books.filter(book => book.completionStatus === selectedStatus);
     }
     setFilteredBooks(books);
-  }, [searchTerm, selectedGenre, selectedTags, selectedStatus]);
+  }, [searchTerm, selectedGenre, selectedTags, selectedStatus, allBooksData]);
 
   const handleTagChange = (tag: string) => {
     setSelectedTags(prev => 

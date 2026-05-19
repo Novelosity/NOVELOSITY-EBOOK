@@ -14,12 +14,17 @@ import Link from "next/link";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { useRouter } from "next/navigation"; 
-import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import React, { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import ClientRoleProtector from "@/components/ClientRoleProtector";
+import { useAuth } from "@/contexts/AuthContext";
+import { createNovel } from "@/lib/firestore";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { storage } from "@/lib/firebase";
+import { useToast } from "@/hooks/use-toast";
 
 const novelFormSchema = z.object({
   bookTitle: z.string().min(1, "Book title is required").max(100, "Title should be within 100 characters"),
@@ -43,7 +48,13 @@ const tagCategories = {
 
 
 function CreateNovelContent() {
-  const router = useRouter(); 
+  const router = useRouter();
+  const { user, userProfile } = useAuth();
+  const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [coverPreview, setCoverPreview] = useState<string | null>(null);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { control, handleSubmit, formState: { errors }, setValue, watch } = useForm<NovelFormData>({
     resolver: zodResolver(novelFormSchema),
     defaultValues: {
@@ -80,11 +91,48 @@ function CreateNovelContent() {
     setIsTagModalOpen(false);
   };
 
-  const onSubmit = (data: NovelFormData) => {
-    console.log(data);
-    const novelId = `novel-${Date.now()}`; 
-    alert("Novel creation submitted (UI Only)! Redirecting to chapter editor.");
-    router.push(`/author/write/${novelId}`); 
+  const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setCoverFile(file);
+      const url = URL.createObjectURL(file);
+      setCoverPreview(url);
+    }
+  };
+
+  const onSubmit = async (data: NovelFormData) => {
+    if (!user || !userProfile) {
+      toast({ title: "Not signed in", description: "Please sign in to create a novel.", variant: "destructive" });
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      let coverImageUrl = 'https://placehold.co/600x800.png';
+      if (coverFile) {
+        const storageRef = ref(storage, `covers/${user.uid}/${Date.now()}_${coverFile.name}`);
+        const snapshot = await uploadBytes(storageRef, coverFile);
+        coverImageUrl = await getDownloadURL(snapshot.ref);
+      }
+      const tagsArray = data.tags ? data.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
+      const novelId = await createNovel({
+        title: data.bookTitle,
+        authorId: user.uid,
+        authorName: userProfile.displayName,
+        synopsis: data.synopsis,
+        genre: data.genre,
+        tags: tagsArray,
+        coverImageUrl,
+        status: 'draft',
+        contentRating: data.contentRating,
+      });
+      toast({ title: "Novel created!", description: "Now add your first chapter." });
+      router.push(`/author/write/${novelId}`);
+    } catch (err) {
+      console.error(err);
+      toast({ title: "Error", description: "Failed to create novel. Please try again.", variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -101,27 +149,29 @@ function CreateNovelContent() {
         <form onSubmit={handleSubmit(onSubmit)}>
           <CardContent className="grid md:grid-cols-3 gap-8 p-6">
             <div className="md:col-span-1 space-y-4">
-              <div className="aspect-[3/4] w-full bg-muted rounded-md flex flex-col items-center justify-center border-2 border-dashed border-border">
-                <Image
-                  src="https://placehold.co/600x800.png"
-                  alt="Book Cover Placeholder"
-                  width={300}
-                  height={400}
-                  className="object-contain max-h-full opacity-50"
-                  data-ai-hint="book cover"
-                />
-                <UploadCloud className="h-12 w-12 text-muted-foreground mt-4" />
-                <p className="text-sm text-muted-foreground mt-2">Click or drag to upload</p>
+              <div
+                className="aspect-[3/4] w-full bg-muted rounded-md flex flex-col items-center justify-center border-2 border-dashed border-border cursor-pointer hover:border-primary transition-colors overflow-hidden"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {coverPreview ? (
+                  <Image src={coverPreview} alt="Cover preview" width={300} height={400} className="object-cover w-full h-full" />
+                ) : (
+                  <>
+                    <UploadCloud className="h-12 w-12 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground mt-2 text-center px-4">Click to upload cover image</p>
+                  </>
+                )}
               </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={handleCoverChange}
+              />
               <p className="text-xs text-muted-foreground text-center">
-                Cover size: 600x800; File format: .jpg, .png
+                Cover size: 600x800; File format: .jpg, .png, .webp
               </p>
-              <Button type="button" variant="outline" className="w-full" onClick={() => alert("Recommended book covers (UI Only)")}>
-                Recommended book covers
-              </Button>
-              <Button type="button" variant="outline" className="w-full" onClick={() => alert("Book covers on your device (UI Only)")}>
-                Book covers on your device
-              </Button>
             </div>
 
             <div className="md:col-span-2 space-y-6">
@@ -281,7 +331,9 @@ function CreateNovelContent() {
             </div>
           </CardContent>
           <CardFooter className="p-6 border-t">
-            <Button type="submit" size="lg" className="w-full md:w-auto md:ml-auto">Create</Button>
+            <Button type="submit" size="lg" className="w-full md:w-auto md:ml-auto" disabled={isSubmitting}>
+              {isSubmitting ? "Creating..." : "Create Novel"}
+            </Button>
           </CardFooter>
         </form>
       </Card>

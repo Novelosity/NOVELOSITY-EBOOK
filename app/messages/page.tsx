@@ -1,44 +1,116 @@
-
-// src/app/messages/page.tsx
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
-import { Mail, Send, Search, Users, MessageCircle } from "lucide-react"; // Changed icon
+import { Mail, Send, Search, Users, MessageCircle, LogIn } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import React, { useEffect } from "react"; 
-
-// Mock data similar to author-communication, but for general user messages
-const mockConversations = [
-  { id: "convo1", userName: "BookLover123", avatarUrl: "https://placehold.co/100x100.png?text=BL", dataAiHint: "reader avatar", lastMessage: "Hey, loved your comment on Chapter 5!", lastMessageDate: "1h ago", unread: true },
-  { id: "convo2", userName: "StorySeeker", avatarUrl: "https://placehold.co/100x100.png?text=SS", dataAiHint: "user avatar", lastMessage: "Thanks for the recommendation!", lastMessageDate: "5h ago", unread: false },
-  { id: "convo3", userName: "PageTurnerPro", avatarUrl: "https://placehold.co/100x100.png?text=PT", dataAiHint: "book lover", lastMessage: "Did you finish 'Whispers of the Void' yet?", lastMessageDate: "2d ago", unread: false },
-];
+import React, { useEffect, useState, useRef } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  getConversations,
+  sendMessage,
+  subscribeToMessages,
+  Conversation,
+  Message,
+} from "@/lib/firestore";
+import Link from "next/link";
 
 export default function MessagesPage() {
+  const { user, userProfile, isLoading } = useAuth();
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [selectedConvo, setSelectedConvo] = useState<Conversation | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [messageText, setMessageText] = useState("");
+  const [loadingConvos, setLoadingConvos] = useState(false);
+  const [sending, setSending] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     document.title = "My Messages | Novelosity";
   }, []);
 
-  // Basic state for a selected conversation and message - UI only
-  const [selectedConversation, setSelectedConversation] = React.useState(mockConversations[0]);
-  const [message, setMessage] = React.useState("");
+  useEffect(() => {
+    if (!user) return;
+    setLoadingConvos(true);
+    getConversations(user.uid)
+      .then(setConversations)
+      .catch(console.error)
+      .finally(() => setLoadingConvos(false));
+  }, [user]);
+
+  useEffect(() => {
+    if (!selectedConvo?.id) return;
+    const unsub = subscribeToMessages(selectedConvo.id, (msgs) => {
+      setMessages(msgs);
+    });
+    return () => unsub();
+  }, [selectedConvo?.id]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const handleSend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!messageText.trim() || !selectedConvo?.id || !user || !userProfile) return;
+    setSending(true);
+    try {
+      await sendMessage(
+        selectedConvo.id,
+        user.uid,
+        userProfile.displayName,
+        userProfile.photoURL ?? '',
+        messageText.trim()
+      );
+      setMessageText("");
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-8">
+        <LogIn className="h-16 w-16 text-muted-foreground mb-4" />
+        <h2 className="text-2xl font-headline mb-2">Sign in to view messages</h2>
+        <Button asChild><Link href="/login">Sign In / Register</Link></Button>
+      </div>
+    );
+  }
+
+  const getOtherParticipantName = (convo: Conversation) => {
+    const otherId = convo.participantIds.find((id) => id !== user.uid);
+    return otherId ? convo.participantNames[otherId] : 'Unknown';
+  };
+
+  const getOtherParticipantPhoto = (convo: Conversation) => {
+    const otherId = convo.participantIds.find((id) => id !== user.uid);
+    return otherId ? convo.participantPhotos[otherId] : '';
+  };
 
   return (
     <div className="h-full flex flex-col">
       <div className="container mx-auto py-8 flex flex-col flex-1">
-        <header className="text-center mb-12">
-          <Mail className="mx-auto h-16 w-16 text-primary mb-4" />
-          <h1 className="text-4xl font-headline mb-2">My Messages</h1>
-          <p className="text-lg text-muted-foreground">
-            Connect with other readers and discuss your favorite stories.
-          </p>
+        <header className="text-center mb-8">
+          <Mail className="mx-auto h-12 w-12 text-primary mb-3" />
+          <h1 className="text-3xl font-headline mb-1">My Messages</h1>
+          <p className="text-muted-foreground">Connect with other readers and authors.</p>
         </header>
 
         <div className="grid md:grid-cols-3 gap-6 flex-1 overflow-hidden">
-          {/* Conversation List Column */}
+          {/* Conversation list */}
           <Card className="md:col-span-1 flex flex-col">
             <CardHeader className="border-b p-4">
               <div className="flex items-center gap-2">
@@ -47,88 +119,91 @@ export default function MessagesPage() {
               </div>
               <div className="relative mt-2">
                 <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input placeholder="Search messages or users..." className="pl-8 h-9" />
+                <Input placeholder="Search conversations..." className="pl-8 h-9" />
               </div>
             </CardHeader>
             <CardContent className="p-0 flex-1 overflow-y-auto">
-              <div className="divide-y">
-                {mockConversations.map(convo => (
-                  <div
-                    key={convo.id}
-                    className={`p-3 hover:bg-muted/50 cursor-pointer ${selectedConversation?.id === convo.id ? 'bg-muted' : ''}`}
-                    onClick={() => setSelectedConversation(convo)}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-10 w-10">
-                        <AvatarImage src={convo.avatarUrl} alt={convo.userName} data-ai-hint={convo.dataAiHint} />
-                        <AvatarFallback>{convo.userName.substring(0,1)}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <div className="flex justify-between items-center">
-                          <p className="font-semibold text-sm">{convo.userName}</p>
-                          {convo.unread && <span className="h-2.5 w-2.5 rounded-full bg-primary"></span>}
+              {loadingConvos ? (
+                <div className="flex justify-center p-8">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
+                </div>
+              ) : conversations.length === 0 ? (
+                <p className="p-4 text-center text-sm text-muted-foreground">No conversations yet. Start one by visiting a user&apos;s profile.</p>
+              ) : (
+                <div className="divide-y">
+                  {conversations.map((convo) => {
+                    const name = getOtherParticipantName(convo);
+                    const photo = getOtherParticipantPhoto(convo);
+                    return (
+                      <div
+                        key={convo.id}
+                        className={`p-3 hover:bg-muted/50 cursor-pointer ${selectedConvo?.id === convo.id ? 'bg-muted' : ''}`}
+                        onClick={() => setSelectedConvo(convo)}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-10 w-10">
+                            <AvatarImage src={photo} alt={name} />
+                            <AvatarFallback>{name[0]?.toUpperCase()}</AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-sm">{name}</p>
+                            <p className="text-xs text-muted-foreground truncate">{convo.lastMessage || 'No messages yet'}</p>
+                          </div>
                         </div>
-                        <p className="text-xs text-muted-foreground truncate">{convo.lastMessage}</p>
                       </div>
-                      <p className="text-xs text-muted-foreground self-start">{convo.lastMessageDate}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-               {mockConversations.length === 0 && (
-                  <p className="p-4 text-center text-sm text-muted-foreground">No messages yet.</p>
-               )}
+                    );
+                  })}
+                </div>
+              )}
             </CardContent>
           </Card>
 
-          {/* Message Area Column */}
+          {/* Message area */}
           <Card className="md:col-span-2 flex flex-col">
-            {selectedConversation ? (
+            {selectedConvo ? (
               <>
                 <CardHeader className="border-b p-4">
                   <div className="flex items-center gap-3">
                     <Avatar className="h-10 w-10">
-                        <AvatarImage src={selectedConversation.avatarUrl} alt={selectedConversation.userName} data-ai-hint={selectedConversation.dataAiHint} />
-                        <AvatarFallback>{selectedConversation.userName.substring(0,1)}</AvatarFallback>
+                      <AvatarImage src={getOtherParticipantPhoto(selectedConvo)} alt={getOtherParticipantName(selectedConvo)} />
+                      <AvatarFallback>{getOtherParticipantName(selectedConvo)[0]?.toUpperCase()}</AvatarFallback>
                     </Avatar>
-                    <div>
-                      <CardTitle className="text-lg font-headline">{selectedConversation.userName}</CardTitle>
-                      <CardDescription className="text-xs">Online</CardDescription> {/* Placeholder status */}
-                    </div>
+                    <CardTitle className="text-lg font-headline">{getOtherParticipantName(selectedConvo)}</CardTitle>
                   </div>
                 </CardHeader>
-                <CardContent className="flex-1 p-4 space-y-4 overflow-y-auto bg-muted/20">
-                  {/* Placeholder for chat messages */}
-                  <div className="flex justify-start">
-                    <div className="bg-background border p-3 rounded-lg max-w-[70%]">
-                      <p className="text-sm">Hey, loved your comment on Chapter 5!</p>
-                      <p className="text-xs text-right text-muted-foreground mt-1">{selectedConversation.userName} - 10:30 AM</p>
-                    </div>
-                  </div>
-                  <div className="flex justify-end">
-                    <div className="bg-primary text-primary-foreground p-3 rounded-lg max-w-[70%]">
-                      <p className="text-sm">Oh, thanks! Glad you enjoyed it. That twist was unexpected, right?</p>
-                      <p className="text-xs text-right opacity-70 mt-1">You - 10:32 AM</p>
-                    </div>
-                  </div>
+                <CardContent className="flex-1 p-4 space-y-3 overflow-y-auto bg-muted/20 max-h-[400px]">
+                  {messages.length === 0 ? (
+                    <p className="text-center text-sm text-muted-foreground py-8">No messages yet. Say hello!</p>
+                  ) : (
+                    messages.map((msg) => {
+                      const isMe = msg.senderId === user.uid;
+                      return (
+                        <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`p-3 rounded-lg max-w-[70%] ${isMe ? 'bg-primary text-primary-foreground' : 'bg-background border'}`}>
+                            <p className="text-sm">{msg.content}</p>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                  <div ref={messagesEndRef} />
                 </CardContent>
                 <CardContent className="border-t p-4">
-                  <form
-                    className="flex items-center gap-3"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      alert(`Message sent to ${selectedConversation.userName}: ${message} (UI Only)`);
-                      setMessage("");
-                    }}
-                  >
+                  <form className="flex items-center gap-3" onSubmit={handleSend}>
                     <Textarea
                       placeholder="Type your message..."
                       className="flex-1 resize-none"
                       rows={1}
-                      value={message}
-                      onChange={(e) => setMessage(e.target.value)}
+                      value={messageText}
+                      onChange={(e) => setMessageText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSend(e);
+                        }
+                      }}
                     />
-                    <Button type="submit" size="icon">
+                    <Button type="submit" size="icon" disabled={sending || !messageText.trim()}>
                       <Send className="h-5 w-5" />
                     </Button>
                   </form>
@@ -136,9 +211,9 @@ export default function MessagesPage() {
               </>
             ) : (
               <CardContent className="flex flex-1 items-center justify-center">
-                <div className="text-center text-muted-foreground">
+                <div className="text-center text-muted-foreground py-12">
                   <MessageCircle className="mx-auto h-12 w-12 mb-4" />
-                  <p>Select a conversation to view messages or start a new one.</p>
+                  <p>Select a conversation to start chatting.</p>
                 </div>
               </CardContent>
             )}
@@ -148,4 +223,3 @@ export default function MessagesPage() {
     </div>
   );
 }
-

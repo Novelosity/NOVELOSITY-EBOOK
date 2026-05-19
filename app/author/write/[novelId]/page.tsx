@@ -20,6 +20,8 @@ import {
   DropdownMenuSeparator
 } from "@/components/ui/dropdown-menu";
 import ClientRoleProtector from "@/components/ClientRoleProtector";
+import { getChapters, createChapter, updateChapter, deleteChapter as deleteChapterFS, getNovel } from "@/lib/firestore";
+import { useToast } from "@/hooks/use-toast";
 
 const initialMockNovelTitle = "The Crimson Labyrinth";
 interface Chapter {
@@ -42,14 +44,41 @@ const initialMockChapters: Chapter[] = [
 
 function WriteChapterContent() {
   const params = useParams();
-  const novelId = params.novelId as string; 
+  const novelId = params.novelId as string;
+  const { toast } = useToast();
 
-  const [chapters, setChapters] = useState<Chapter[]>(initialMockChapters);
-  const [selectedChapterId, setSelectedChapterId] = useState(chapters[0]?.id || "");
+  const [novelTitle, setNovelTitle] = useState("My Novel");
+  const [chapters, setChapters] = useState<Chapter[]>([]);
+  const [loadingChapters, setLoadingChapters] = useState(true);
+  const [selectedChapterId, setSelectedChapterId] = useState("");
   const [chapterContent, setChapterContent] = useState("");
   const [noteContent, setNoteContent] = useState("");
   const [currentWordCount, setCurrentWordCount] = useState(0);
   const [noteWordCount, setNoteWordCount] = useState(0);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Load novel info and chapters
+  useEffect(() => {
+    if (!novelId) return;
+    setLoadingChapters(true);
+    Promise.all([getNovel(novelId), getChapters(novelId)])
+      .then(([novel, fetchedChapters]) => {
+        if (novel) setNovelTitle(novel.title);
+        const mapped: Chapter[] = fetchedChapters.map((ch) => ({
+          id: ch.id ?? '',
+          title: ch.title,
+          words: ch.wordCount,
+          date: ch.updatedAt ? new Date((ch.updatedAt as { seconds: number }).seconds * 1000).toLocaleString() : 'Unpublished',
+          content: ch.content,
+          isPaid: ch.isPaid,
+          coinCost: ch.coinCost,
+        }));
+        setChapters(mapped);
+        if (mapped.length > 0) setSelectedChapterId(mapped[0].id);
+      })
+      .catch(console.error)
+      .finally(() => setLoadingChapters(false));
+  }, [novelId]);
 
   const selectedChapter = chapters.find(c => c.id === selectedChapterId);
   
@@ -85,25 +114,56 @@ function WriteChapterContent() {
     setNoteWordCount(noteContent.split(/\s+/).filter(Boolean).length);
   }, [noteContent]);
 
-  const handleSave = () => {
-    alert(`Chapter "${selectedChapter?.title}" saved with content:\n${chapterContent}\nNote: ${noteContent}`);
-    if (selectedChapter) {
-      setChapters(prevChapters => 
-        prevChapters.map(ch => 
-          ch.id === selectedChapterId 
-          ? { ...ch, content: chapterContent, words: currentWordCount, date: new Date().toISOString().split('T')[0] + ' ' + new Date().toTimeString().split(' ')[0] } 
-          : ch
-        )
-      );
+  const handleSave = async () => {
+    if (!selectedChapterId || !novelId) return;
+    setIsSaving(true);
+    try {
+      // Check if this is a new (unsaved) chapter
+      if (selectedChapterId.startsWith('new_')) {
+        const newId = await createChapter(novelId, {
+          title: selectedChapter?.title || 'Untitled Chapter',
+          content: chapterContent,
+          chapterNumber: chapters.length,
+          isPaid: selectedChapter?.isPaid ?? false,
+          coinCost: selectedChapter?.coinCost ?? 0,
+          wordCount: currentWordCount,
+          status: 'draft',
+        });
+        setChapters(prev => prev.map(ch => ch.id === selectedChapterId ? { ...ch, id: newId, words: currentWordCount } : ch));
+        setSelectedChapterId(newId);
+      } else {
+        await updateChapter(novelId, selectedChapterId, {
+          content: chapterContent,
+          wordCount: currentWordCount,
+        });
+        setChapters(prev => prev.map(ch => ch.id === selectedChapterId ? { ...ch, content: chapterContent, words: currentWordCount } : ch));
+      }
+      toast({ title: "Chapter saved!" });
+    } catch {
+      toast({ title: "Error", description: "Failed to save chapter.", variant: "destructive" });
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  const handlePreview = () => {
-    alert(`Previewing chapter "${selectedChapter?.title}"... (UI Only)`);
+  const handlePublishChapter = async () => {
+    if (!selectedChapterId || selectedChapterId.startsWith('new_') || !novelId) {
+      toast({ title: "Save first", description: "Please save the chapter before publishing.", variant: "destructive" });
+      return;
+    }
+    setIsSaving(true);
+    try {
+      await updateChapter(novelId, selectedChapterId, { status: 'published' });
+      toast({ title: "Chapter published!", description: "Readers can now see this chapter." });
+    } catch {
+      toast({ title: "Error", description: "Failed to publish chapter.", variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleNewChapter = () => {
-    const newChapterId = `ch${Date.now()}`; 
+    const newChapterId = `new_${Date.now()}`;
     const newChapter: Chapter = {
       id: newChapterId,
       title: "Untitled Chapter",
@@ -112,34 +172,37 @@ function WriteChapterContent() {
       content: "",
       isPaid: false,
     };
-    setChapters(prevChapters => [...prevChapters, newChapter]);
+    setChapters(prev => [...prev, newChapter]);
     setSelectedChapterId(newChapterId);
     setChapterContent("");
     setNoteContent("");
     setCurrentWordCount(0);
     setNoteWordCount(0);
-    alert("New 'Untitled Chapter' added and selected for editing.");
   };
 
-  const handleChapterOption = (option: string, chapterId: string) => {
+  const handleChapterOption = async (option: string, chapterId: string) => {
     const chapterTitle = chapters.find(c => c.id === chapterId)?.title || "Chapter";
     if (option === "setPricing") {
-        setChapters(prev => prev.map(ch => ch.id === chapterId ? {...ch, isPaid: !ch.isPaid, coinCost: ch.isPaid ? undefined : (ch.coinCost || 10) } : ch));
-        const newIsPaidStatus = !chapters.find(c => c.id === chapterId)?.isPaid;
-        alert(`${newIsPaidStatus ? 'Made Free' : 'Set Pricing'} for "${chapterTitle}" (UI placeholder - Toggled mock paid status)`);
+      const chapter = chapters.find(c => c.id === chapterId);
+      const newIsPaid = !chapter?.isPaid;
+      if (!chapterId.startsWith('new_')) {
+        await updateChapter(novelId, chapterId, { isPaid: newIsPaid, coinCost: newIsPaid ? 10 : 0 });
+      }
+      setChapters(prev => prev.map(ch => ch.id === chapterId ? { ...ch, isPaid: newIsPaid, coinCost: newIsPaid ? (ch.coinCost || 10) : 0 } : ch));
     } else if (option === 'delete') {
-        if(confirm(`Are you sure you want to delete "${chapterTitle}"?`)){
-            setChapters(prev => {
-                const updatedChapters = prev.filter(ch => ch.id !== chapterId);
-                if(selectedChapterId === chapterId) {
-                    setSelectedChapterId(updatedChapters[0]?.id || "");
-                }
-                return updatedChapters;
-            });
-            alert(`Chapter "${chapterTitle}" deleted (UI Only).`);
+      if (confirm(`Delete "${chapterTitle}"? This cannot be undone.`)) {
+        if (!chapterId.startsWith('new_')) {
+          await deleteChapterFS(novelId, chapterId);
         }
-    } else {
-        alert(`${option} for chapter "${chapterTitle}" (UI Placeholder)`);
+        setChapters(prev => {
+          const updated = prev.filter(ch => ch.id !== chapterId);
+          if (selectedChapterId === chapterId) setSelectedChapterId(updated[0]?.id || "");
+          return updated;
+        });
+        toast({ title: "Chapter deleted" });
+      }
+    } else if (option === 'publish') {
+      await handlePublishChapter();
     }
   };
 
@@ -274,9 +337,9 @@ function WriteChapterContent() {
                 <p>(Ideal word count: 600-1000)</p>
               </div>
               <div className="flex gap-3">
-                <Button variant="outline" onClick={handlePreview}><Eye className="mr-2 h-4 w-4" />Preview</Button>
-                <Button onClick={handleSave} className="bg-primary hover:bg-primary/90">
-                  <Save className="mr-2 h-4 w-4" /> Save
+                <Button variant="outline" onClick={() => toast({ title: "Preview", description: "Preview feature coming soon." })}><Eye className="mr-2 h-4 w-4" />Preview</Button>
+                <Button onClick={handleSave} disabled={isSaving} className="bg-primary hover:bg-primary/90">
+                  <Save className="mr-2 h-4 w-4" /> {isSaving ? "Saving..." : "Save"}
                 </Button>
               </div>
             </div>

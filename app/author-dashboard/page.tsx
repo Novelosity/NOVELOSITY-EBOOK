@@ -42,6 +42,9 @@ import {
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import ClientRoleProtector from "@/components/ClientRoleProtector";
+import { useAuth } from "@/contexts/AuthContext";
+import { getNovelsByAuthor, updateNovel, deleteNovel, Novel } from "@/lib/firestore";
+import { useToast } from "@/hooks/use-toast";
 
 interface AuthorStory {
   id: string;
@@ -97,21 +100,61 @@ const initialMockAuthorStories: AuthorStory[] = [
 
 function AuthorDashboardContent() {
   const router = useRouter();
+  const { user, userProfile } = useAuth();
+  const { toast } = useToast();
   const [selectedDate, setSelectedDate] = React.useState<Date | undefined>();
-  const [authorStories, setAuthorStories] = useState<AuthorStory[]>(initialMockAuthorStories);
+  const [authorStories, setAuthorStories] = useState<AuthorStory[]>([]);
+  const [loadingStories, setLoadingStories] = useState(true);
 
   useEffect(() => {
     setSelectedDate(new Date());
   }, []);
 
-  const handleApplyForContract = (storyId: string) => {
-    setAuthorStories(prevStories =>
-      prevStories.map(story =>
-        story.id === storyId ? { ...story, contractStatus: "PendingReview" } : story
-      )
+  useEffect(() => {
+    if (!user) return;
+    setLoadingStories(true);
+    getNovelsByAuthor(user.uid)
+      .then((novels: Novel[]) => {
+        const mapped: AuthorStory[] = novels.map((n) => ({
+          id: n.id ?? '',
+          title: n.title,
+          coverImageUrl: n.coverImageUrl || 'https://placehold.co/300x450.png',
+          dataAiHint: n.genre,
+          subscribers: n.subscribers,
+          views: n.views,
+          words: n.wordCount,
+          status: n.status === 'published' ? 'Ongoing' : 'Ongoing',
+          lastUpdate: n.updatedAt ? new Date((n.updatedAt as { seconds: number })?.seconds * 1000).toLocaleDateString() : 'Recently',
+          contractStatus: 'None',
+        }));
+        setAuthorStories(mapped);
+      })
+      .catch(console.error)
+      .finally(() => setLoadingStories(false));
+  }, [user]);
+
+  const handleApplyForContract = async (storyId: string) => {
+    setAuthorStories(prev =>
+      prev.map(s => s.id === storyId ? { ...s, contractStatus: "PendingReview" as const } : s)
     );
-    const story = authorStories.find(s => s.id === storyId);
-    alert(`Contract application submitted for "${story?.title}". It will be reviewed once the novel reaches 5000 words.`);
+    try {
+      await updateNovel(storyId, { status: 'submitted' });
+      const story = authorStories.find(s => s.id === storyId);
+      toast({ title: "Contract application submitted", description: `"${story?.title}" has been submitted for review.` });
+    } catch {
+      toast({ title: "Error", description: "Failed to submit contract application.", variant: "destructive" });
+    }
+  };
+
+  const handleDeleteStory = async (storyId: string) => {
+    if (!confirm("Are you sure you want to delete this novel? This cannot be undone.")) return;
+    try {
+      await deleteNovel(storyId);
+      setAuthorStories(prev => prev.filter(s => s.id !== storyId));
+      toast({ title: "Novel deleted" });
+    } catch {
+      toast({ title: "Error", description: "Failed to delete novel.", variant: "destructive" });
+    }
   };
 
   const getContractButton = (story: AuthorStory) => {
