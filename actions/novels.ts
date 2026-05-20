@@ -91,6 +91,26 @@ export async function getPublishedNovels(limit = 20): Promise<Novel[]> {
   return rows as Novel[];
 }
 
+export async function getTrendingNovels(limit = 6): Promise<Novel[]> {
+  const rows = await db
+    .select()
+    .from(novels)
+    .where(eq(novels.status, 'published'))
+    .orderBy(desc(novels.views))
+    .limit(limit);
+  return rows as Novel[];
+}
+
+export async function getNewReleases(limit = 6): Promise<Novel[]> {
+  const rows = await db
+    .select()
+    .from(novels)
+    .where(eq(novels.status, 'published'))
+    .orderBy(desc(novels.createdAt))
+    .limit(limit);
+  return rows as Novel[];
+}
+
 export async function getNovelsByAuthor(authorId: string): Promise<Novel[]> {
   const rows = await db
     .select()

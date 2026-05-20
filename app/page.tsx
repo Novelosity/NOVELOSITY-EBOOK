@@ -1,35 +1,52 @@
-
-"use client";
-
-import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { BookOpen, Users, Zap, TrendingUp, Sparkles, UserCheck } from "lucide-react";
+import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/card";
+import { BookOpen, Users, Zap, TrendingUp, Sparkles } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { getTrendingNovels, getNewReleases, type Novel } from "@/actions/novels";
 
-export default function DashboardPage() {
-  useEffect(() => {
-    document.title = "Novelosify - Read and Write Amazing Novels";
-  }, []);
+function NovelCard({ novel }: { novel: Novel }) {
+  return (
+    <Card className="overflow-hidden hover:shadow-xl transition-shadow duration-300">
+      <Link href={`/reader/${novel.id}/chapter-1`} className="block">
+        <div className="aspect-[2/3] relative w-full">
+          <Image
+            src={novel.coverImageUrl || "https://placehold.co/300x450.png"}
+            alt={novel.title}
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            className="object-cover"
+          />
+        </div>
+        <CardContent className="p-4">
+          <CardTitle className="text-lg font-headline truncate" title={novel.title}>
+            {novel.title}
+          </CardTitle>
+          <CardDescription className="text-sm">by {novel.authorName}</CardDescription>
+          {novel.genre && (
+            <span className="mt-2 inline-block text-xs font-semibold text-primary bg-primary/10 px-2 py-1 rounded-full">
+              {novel.genre}
+            </span>
+          )}
+        </CardContent>
+      </Link>
+    </Card>
+  );
+}
 
-  const trendingBooks = [
-    { id: "1", title: "Whispers of the Void", author: "Elara Vance", coverImageUrl: "https://placehold.co/300x450.png", dataAiHint: "fantasy book" },
-    { id: "2", title: "Neon City Chronicles", author: "Jax Ryder", coverImageUrl: "https://placehold.co/300x450.png", dataAiHint: "cyberpunk novel" },
-    { id: "3", title: "The Last Stargazer", author: "Mira Quasar", coverImageUrl: "https://placehold.co/300x450.png", dataAiHint: "science fiction" },
-  ];
+function EmptySection() {
+  return (
+    <div className="col-span-3 py-10 text-center text-muted-foreground">
+      No novels yet — be the first to publish one!
+    </div>
+  );
+}
 
-  const newReleases = [
-    { id: "4", title: "Gardens of Eldoria", author: "Fiona Greenleaf", coverImageUrl: "https://placehold.co/300x450.png", dataAiHint: "romance novel" },
-    { id: "5", title: "Quantum Entanglement", author: "Dr. Aris Thorne", coverImageUrl: "https://placehold.co/300x450.png", dataAiHint: "sci-fi book" },
-    { id: "6", title: "The Alchemist's Secret", author: "Orion Blackwood", coverImageUrl: "https://placehold.co/300x450.png", dataAiHint: "mystery novel" },
-  ];
-
-  const recommendedBooks = [
-    { id: "7", title: "Echoes of the Past", author: "Seraphina Moon", coverImageUrl: "https://placehold.co/300x450.png", dataAiHint: "historical fiction" },
-    { id: "1", title: "Whispers of the Void", author: "Elara Vance", coverImageUrl: "https://placehold.co/300x450.png", dataAiHint: "fantasy book" }, // Re-using for variety
-    { id: "2", title: "Neon City Chronicles", author: "Jax Ryder", coverImageUrl: "https://placehold.co/300x450.png", dataAiHint: "cyberpunk novel" }, // Re-using for variety
-  ];
+export default async function HomePage() {
+  const [trending, newReleases] = await Promise.all([
+    getTrendingNovels(6),
+    getNewReleases(6),
+  ]);
 
   return (
     <div className="space-y-12">
@@ -40,23 +57,19 @@ export default function DashboardPage() {
         </p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card className="hover:shadow-lg transition-shadow">
-            <CardHeader>
+            <CardContent className="pt-6">
               <BookOpen className="h-8 w-8 text-primary mb-2" />
-              <CardTitle className="font-headline">Explore Reads</CardTitle>
-            </CardHeader>
-            <CardContent>
+              <CardTitle className="font-headline mb-1">Explore Reads</CardTitle>
               <CardDescription>Browse our vast library of novels across all genres.</CardDescription>
-              <Button asChild className="mt-4 w-full" variant="default">
+              <Button asChild className="mt-4 w-full">
                 <Link href="/browse">Start Reading</Link>
               </Button>
             </CardContent>
           </Card>
           <Card className="hover:shadow-lg transition-shadow">
-            <CardHeader>
+            <CardContent className="pt-6">
               <Users className="h-8 w-8 text-primary mb-2" />
-              <CardTitle className="font-headline">Discover Authors</CardTitle>
-            </CardHeader>
-            <CardContent>
+              <CardTitle className="font-headline mb-1">Discover Authors</CardTitle>
               <CardDescription>Find your new favorite authors and follow their work.</CardDescription>
               <Button asChild className="mt-4 w-full" variant="outline">
                 <Link href="/authors">Meet Authors</Link>
@@ -64,11 +77,9 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
           <Card className="hover:shadow-lg transition-shadow">
-            <CardHeader>
+            <CardContent className="pt-6">
               <Zap className="h-8 w-8 text-primary mb-2" />
-              <CardTitle className="font-headline">Author Tools</CardTitle>
-            </CardHeader>
-            <CardContent>
+              <CardTitle className="font-headline mb-1">Author Tools</CardTitle>
               <CardDescription>Generate captivating chapter titles with our AI tool.</CardDescription>
               <Button asChild className="mt-4 w-full" variant="outline">
                 <Link href="/tools/chapter-title-generator">Use AI Generator</Link>
@@ -84,26 +95,9 @@ export default function DashboardPage() {
           <h3 className="text-2xl font-headline">Trending Now</h3>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {trendingBooks.map((book) => (
-            <Card key={book.id} className="overflow-hidden hover:shadow-xl transition-shadow duration-300">
-              <Link href={`/reader/${book.id}/chapter-1`} className="block">
-                <div className="aspect-[2/3] relative w-full">
-                  <Image 
-                    src={book.coverImageUrl} 
-                    alt={book.title} 
-                    fill
-                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                    className="object-cover"
-                    data-ai-hint={book.dataAiHint}
-                  />
-                </div>
-                <CardContent className="p-4">
-                  <CardTitle className="text-lg font-headline truncate" title={book.title}>{book.title}</CardTitle>
-                  <CardDescription className="text-sm">by {book.author}</CardDescription>
-                </CardContent>
-              </Link>
-            </Card>
-          ))}
+          {trending.length > 0
+            ? trending.map((novel) => <NovelCard key={novel.id} novel={novel} />)
+            : <EmptySection />}
         </div>
       </section>
 
@@ -113,58 +107,11 @@ export default function DashboardPage() {
           <h3 className="text-2xl font-headline">New Releases</h3>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {newReleases.map((book) => (
-            <Card key={book.id} className="overflow-hidden hover:shadow-xl transition-shadow duration-300">
-              <Link href={`/reader/${book.id}/chapter-1`} className="block">
-                <div className="aspect-[2/3] relative w-full">
-                  <Image 
-                    src={book.coverImageUrl} 
-                    alt={book.title} 
-                    fill
-                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                    className="object-cover"
-                    data-ai-hint={book.dataAiHint}
-                  />
-                </div>
-                <CardContent className="p-4">
-                  <CardTitle className="text-lg font-headline truncate" title={book.title}>{book.title}</CardTitle>
-                  <CardDescription className="text-sm">by {book.author}</CardDescription>
-                </CardContent>
-              </Link>
-            </Card>
-          ))}
-        </div>
-      </section>
-
-      <section>
-        <div className="flex items-center gap-3 mb-4">
-          <UserCheck className="h-7 w-7 text-primary" />
-          <h3 className="text-2xl font-headline">Recommended For You</h3>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {recommendedBooks.map((book) => (
-            <Card key={book.id} className="overflow-hidden hover:shadow-xl transition-shadow duration-300">
-              <Link href={`/reader/${book.id}/chapter-1`} className="block">
-                <div className="aspect-[2/3] relative w-full">
-                  <Image 
-                    src={book.coverImageUrl} 
-                    alt={book.title} 
-                    fill
-                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                    className="object-cover"
-                    data-ai-hint={book.dataAiHint}
-                  />
-                </div>
-                <CardContent className="p-4">
-                  <CardTitle className="text-lg font-headline truncate" title={book.title}>{book.title}</CardTitle>
-                  <CardDescription className="text-sm">by {book.author}</CardDescription>
-                </CardContent>
-              </Link>
-            </Card>
-          ))}
+          {newReleases.length > 0
+            ? newReleases.map((novel) => <NovelCard key={novel.id} novel={novel} />)
+            : <EmptySection />}
         </div>
       </section>
     </div>
   );
 }
-
