@@ -3,7 +3,8 @@
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
-import { Search, Bell, LogOut, User as UserIcon } from "lucide-react";
+import { Search, LogOut, User as UserIcon } from "lucide-react";
+import { NotificationsBell } from "@/components/notifications-bell";
 import Link from "next/link";
 import { useRole } from "@/contexts/RoleContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -49,9 +50,7 @@ export function SiteHeader() {
         <Button variant="ghost" size="icon" aria-label="Search">
           <Search className="h-5 w-5" />
         </Button>
-        <Button variant="ghost" size="icon" aria-label="Notifications">
-          <Bell className="h-5 w-5" />
-        </Button>
+        <NotificationsBell />
 
         {isSignedIn ? (
           <DropdownMenu>

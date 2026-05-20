@@ -8,37 +8,58 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { UserCircle, Bell, ShieldCheck, Palette, EyeOff } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { UserCircle, Bell, ShieldCheck, Palette, EyeOff, Loader2 } from "lucide-react";
+import { useUser } from "@clerk/nextjs";
+import { useAuth } from "@/contexts/AuthContext";
+import { updateUserProfile } from "@/actions/users";
+import { useToast } from "@/hooks/use-toast";
 
 export default function SettingsPage() {
-  useEffect(() => {
-    document.title = "Settings | Novelosity";
-  }, []);
+  const { user } = useUser();
+  const { userProfile, refreshProfile } = useAuth();
+  const { toast } = useToast();
 
   const [isDarkTheme, setIsDarkTheme] = useState(false);
   const [enableNsfwFilter, setEnableNsfwFilter] = useState(false);
   const [mounted, setMounted] = useState(false);
 
+  // Profile form state
+  const [displayName, setDisplayName] = useState("");
+  const [authorName, setAuthorName] = useState("");
+  const [bio, setBio] = useState("");
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  useEffect(() => {
+    document.title = "Settings | Novelosity";
+  }, []);
+
   useEffect(() => {
     setMounted(true);
-    // Theme initialization
     const savedTheme = localStorage.getItem("theme");
     if (savedTheme) {
-      const newIsDarkTheme = savedTheme === "dark";
-      setIsDarkTheme(newIsDarkTheme);
-      document.documentElement.classList.toggle("dark", newIsDarkTheme);
+      const dark = savedTheme === "dark";
+      setIsDarkTheme(dark);
+      document.documentElement.classList.toggle("dark", dark);
     } else {
       const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
       setIsDarkTheme(prefersDark);
       document.documentElement.classList.toggle("dark", prefersDark);
     }
-
-    // NSFW filter initialization
     const savedNsfwFilter = localStorage.getItem("nsfwFilter");
     if (savedNsfwFilter) {
       setEnableNsfwFilter(savedNsfwFilter === "true");
     }
   }, []);
+
+  // Pre-fill form with real user data once loaded
+  useEffect(() => {
+    if (userProfile) {
+      setDisplayName(userProfile.displayName ?? "");
+      setAuthorName(userProfile.authorName ?? "");
+      setBio(userProfile.bio ?? "");
+    }
+  }, [userProfile]);
 
   const handleThemeChange = (checked: boolean) => {
     setIsDarkTheme(checked);
@@ -49,11 +70,26 @@ export default function SettingsPage() {
   const handleNsfwFilterChange = (checked: boolean) => {
     setEnableNsfwFilter(checked);
     localStorage.setItem("nsfwFilter", String(checked));
-    alert(`NSFW Filter ${checked ? 'Enabled' : 'Disabled'} (UI Only)`);
+  };
+
+  const handleUpdateProfile = async () => {
+    setIsSavingProfile(true);
+    try {
+      await updateUserProfile({
+        displayName: displayName.trim() || undefined,
+        authorName: authorName.trim() || undefined,
+        bio: bio.trim() || undefined,
+      });
+      await refreshProfile();
+      toast({ title: "Profile updated!", description: "Your changes have been saved." });
+    } catch {
+      toast({ title: "Error", description: "Failed to update profile. Please try again.", variant: "destructive" });
+    } finally {
+      setIsSavingProfile(false);
+    }
   };
 
   if (!mounted) {
-    // Render minimal UI or skeleton while waiting for client-side mount
     return (
       <div className="container mx-auto py-8 max-w-3xl">
         <h1 className="text-4xl font-headline mb-10 text-center">Settings</h1>
@@ -63,7 +99,6 @@ export default function SettingsPage() {
       </div>
     );
   }
-
 
   return (
     <div className="container mx-auto py-8 max-w-3xl">
@@ -81,14 +116,53 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
-              <Input id="username" defaultValue="BookLover123" />
+              <Label htmlFor="display-name">Display Name</Label>
+              <Input
+                id="display-name"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder="Your display name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="author-name">Author Name</Label>
+              <Input
+                id="author-name"
+                value={authorName}
+                onChange={(e) => setAuthorName(e.target.value)}
+                placeholder="Your pen name (for published works)"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="bio">Bio</Label>
+              <Textarea
+                id="bio"
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+                placeholder="Tell readers a little about yourself..."
+                rows={3}
+                maxLength={500}
+              />
+              <p className="text-xs text-muted-foreground text-right">{bio.length}/500</p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email Address</Label>
-              <Input id="email" type="email" defaultValue="user@example.com" />
+              <Input
+                id="email"
+                type="email"
+                value={user?.primaryEmailAddress?.emailAddress ?? ""}
+                disabled
+                className="bg-muted text-muted-foreground"
+              />
+              <p className="text-xs text-muted-foreground">Email is managed by your account provider.</p>
             </div>
-            <Button onClick={() => alert("Update Profile clicked (UI Only)")}>Update Profile</Button>
+            <Button onClick={handleUpdateProfile} disabled={isSavingProfile}>
+              {isSavingProfile ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving…</>
+              ) : (
+                "Update Profile"
+              )}
+            </Button>
           </CardContent>
         </Card>
 
@@ -104,19 +178,19 @@ export default function SettingsPage() {
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <Label htmlFor="new-chapter-notifs" className="flex-grow">New chapter releases</Label>
-              <Switch id="new-chapter-notifs" defaultChecked onCheckedChange={(c) => alert(`New chapter release notifications: ${c}`)}/>
+              <Switch id="new-chapter-notifs" defaultChecked />
             </div>
             <div className="flex items-center justify-between">
               <Label htmlFor="comment-replies-notifs" className="flex-grow">Replies to your comments</Label>
-              <Switch id="comment-replies-notifs" defaultChecked onCheckedChange={(c) => alert(`Comment reply notifications: ${c}`)} />
+              <Switch id="comment-replies-notifs" defaultChecked />
             </div>
             <div className="flex items-center justify-between">
               <Label htmlFor="newsletter-notifs" className="flex-grow">Promotional newsletter</Label>
-              <Switch id="newsletter-notifs" onCheckedChange={(c) => alert(`Promotional newsletter: ${c}`)} />
+              <Switch id="newsletter-notifs" />
             </div>
           </CardContent>
         </Card>
-        
+
         {/* Content Preferences */}
         <Card id="content-preferences">
           <CardHeader>
@@ -129,10 +203,10 @@ export default function SettingsPage() {
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <Label htmlFor="nsfw-filter" className="flex-grow">Enable NSFW Filter</Label>
-              <Switch 
-                id="nsfw-filter" 
+              <Switch
+                id="nsfw-filter"
                 checked={enableNsfwFilter}
-                onCheckedChange={handleNsfwFilterChange} 
+                onCheckedChange={handleNsfwFilterChange}
               />
             </div>
             <p className="text-sm text-muted-foreground">This helps hide content that may not be suitable for all audiences.</p>
@@ -151,10 +225,10 @@ export default function SettingsPage() {
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <Label htmlFor="dark-mode" className="flex-grow">Dark Mode</Label>
-              <Switch 
-                id="dark-mode" 
+              <Switch
+                id="dark-mode"
                 checked={isDarkTheme}
-                onCheckedChange={handleThemeChange} 
+                onCheckedChange={handleThemeChange}
               />
             </div>
             <p className="text-sm text-muted-foreground">Theme settings are also available in the reader toolbar.</p>
@@ -171,13 +245,15 @@ export default function SettingsPage() {
             <CardDescription>Manage your account security.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button variant="outline" onClick={() => alert("Change Password clicked (UI Only)")}>Change Password</Button>
-            <Button variant="destructive" onClick={() => alert("Delete Account clicked (UI Only)")}>Delete Account</Button>
+            <p className="text-sm text-muted-foreground">Password and account security are managed through your account provider (Clerk).</p>
+            <Button variant="outline" asChild>
+              <a href="https://accounts.novelosity.com/user" target="_blank" rel="noopener noreferrer">
+                Manage Account Security
+              </a>
+            </Button>
           </CardContent>
         </Card>
       </div>
     </div>
   );
 }
-
-    

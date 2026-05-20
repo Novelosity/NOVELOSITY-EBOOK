@@ -122,7 +122,7 @@ export function BrowseClient({ novels, genres, tags }: Props) {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {filtered.map((novel) => (
               <Card key={novel.id} className="overflow-hidden hover:shadow-xl transition-shadow duration-300 flex flex-col">
-                <Link href={`/reader/${novel.id}/chapter-1`} className="block group">
+                <Link href={`/novel/${novel.id}`} className="block group">
                   <div className="aspect-[2/3] relative w-full">
                     <Image
                       src={novel.coverImageUrl || "https://placehold.co/300x450.png"}
@@ -151,11 +151,15 @@ export function BrowseClient({ novels, genres, tags }: Props) {
                 </Link>
                 <CardFooter className="p-4 pt-0 border-t mt-auto">
                   <div className="flex justify-between w-full gap-2 mt-2">
-                    <Button variant="outline" size="sm" className="flex-1" disabled>
-                      <Library className="mr-2 h-4 w-4" /> Library
+                    <Button variant="outline" size="sm" className="flex-1" asChild>
+                      <Link href={`/novel/${novel.id}`}>
+                        <Library className="mr-2 h-4 w-4" /> Details
+                      </Link>
                     </Button>
-                    <Button variant="outline" size="sm" className="flex-1" disabled>
-                      <Star className="mr-2 h-4 w-4" /> Rate
+                    <Button variant="default" size="sm" className="flex-1" asChild>
+                      <Link href={`/reader/${novel.id}/chapter-1`}>
+                        <Star className="mr-2 h-4 w-4" /> Read
+                      </Link>
                     </Button>
                   </div>
                 </CardFooter>

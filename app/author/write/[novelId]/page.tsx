@@ -1,14 +1,16 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { 
-  Bold, Italic, PlusCircle, Facebook, Twitter, Link as LinkIcon, MoreHorizontal, Save, Edit3, Trash2, Eye, DollarSign, FileText, Settings2
+import {
+  Bold, Italic, PlusCircle, Facebook, Twitter, Link as LinkIcon, MoreHorizontal, Save, Edit3, Trash2, Eye, DollarSign, FileText, Settings2, CheckCircle2
 } from "lucide-react";
 import { useParams } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +21,14 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
 import ClientRoleProtector from "@/components/ClientRoleProtector";
 import { getChapters, createChapter, updateChapter, deleteChapter as deleteChapterFS, getNovel } from "@/actions/novels";
 import { useToast } from "@/hooks/use-toast";
@@ -56,6 +66,11 @@ function WriteChapterContent() {
   const [currentWordCount, setCurrentWordCount] = useState(0);
   const [noteWordCount, setNoteWordCount] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
+  const [isAutoSaving, setIsAutoSaving] = useState(false);
+  const [autoSaved, setAutoSaved] = useState(false);
+  const [isEditTitleOpen, setIsEditTitleOpen] = useState(false);
+  const [editingTitle, setEditingTitle] = useState("");
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load novel info and chapters
   useEffect(() => {
@@ -113,6 +128,55 @@ function WriteChapterContent() {
   useEffect(() => {
     setNoteWordCount(noteContent.split(/\s+/).filter(Boolean).length);
   }, [noteContent]);
+
+  // Auto-save: fires 3 s after the user stops typing (existing chapters only)
+  useEffect(() => {
+    if (!selectedChapterId || selectedChapterId.startsWith('new_') || !novelId) return;
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(async () => {
+      setIsAutoSaving(true);
+      try {
+        await updateChapter(Number(selectedChapterId), {
+          content: chapterContent,
+          wordCount: currentWordCount,
+        });
+        setChapters(prev =>
+          prev.map(ch =>
+            ch.id === selectedChapterId ? { ...ch, content: chapterContent, words: currentWordCount } : ch
+          )
+        );
+        setAutoSaved(true);
+        setTimeout(() => setAutoSaved(false), 2000);
+      } catch {
+        // silent — user can still manually save
+      } finally {
+        setIsAutoSaving(false);
+      }
+    }, 3000);
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chapterContent]);
+
+  const openEditTitle = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setEditingTitle(selectedChapter?.title ?? "");
+    setIsEditTitleOpen(true);
+  };
+
+  const handleSaveTitle = async () => {
+    const trimmed = editingTitle.trim();
+    if (!trimmed || !selectedChapterId) return;
+    if (!selectedChapterId.startsWith('new_')) {
+      await updateChapter(Number(selectedChapterId), { title: trimmed });
+    }
+    setChapters(prev =>
+      prev.map(ch => ch.id === selectedChapterId ? { ...ch, title: trimmed } : ch)
+    );
+    setIsEditTitleOpen(false);
+    toast({ title: "Chapter title updated!" });
+  };
 
   const handleSave = async () => {
     if (!selectedChapterId || !novelId) return;
@@ -182,6 +246,12 @@ function WriteChapterContent() {
 
   const handleChapterOption = async (option: string, chapterId: string) => {
     const chapterTitle = chapters.find(c => c.id === chapterId)?.title || "Chapter";
+    if (option === "Edit Details") {
+      setSelectedChapterId(chapterId);
+      setEditingTitle(chapters.find(c => c.id === chapterId)?.title ?? "");
+      setIsEditTitleOpen(true);
+      return;
+    }
     if (option === "setPricing") {
       const chapter = chapters.find(c => c.id === chapterId);
       const newIsPaid = !chapter?.isPaid;
@@ -285,7 +355,24 @@ function WriteChapterContent() {
         <Card className="flex-1 flex flex-col shadow-lg rounded-lg overflow-hidden">
           <CardContent className="p-0 flex flex-col flex-1">
             <div className="p-4 border-b flex justify-between items-center bg-muted/30">
-              <h2 className="text-xl md:text-2xl font-headline text-primary">{selectedChapter?.title || "Select or Create a Chapter"}</h2>
+              <div className="flex items-center gap-2 min-w-0">
+                <h2
+                  className="text-xl md:text-2xl font-headline text-primary truncate cursor-pointer hover:underline"
+                  title="Click to edit title"
+                  onClick={openEditTitle}
+                >
+                  {selectedChapter?.title || "Select or Create a Chapter"}
+                </h2>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground shrink-0" onClick={openEditTitle} title="Edit title">
+                  <Edit3 className="h-4 w-4" />
+                </Button>
+                {isAutoSaving && <span className="text-xs text-muted-foreground shrink-0">Saving…</span>}
+                {autoSaved && !isAutoSaving && (
+                  <span className="flex items-center gap-1 text-xs text-green-600 shrink-0">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Saved
+                  </span>
+                )}
+              </div>
                <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
@@ -293,11 +380,11 @@ function WriteChapterContent() {
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => alert(`Editing details for chapter "${selectedChapter?.title}" (UI Only)`)}>
-                      <Edit3 className="mr-2 h-4 w-4" />Edit Chapter Details
+                    <DropdownMenuItem onClick={openEditTitle}>
+                      <Edit3 className="mr-2 h-4 w-4" />Edit Chapter Title
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => alert(`Opening publish settings for chapter "${selectedChapter?.title}" (UI Only)`)}>
-                      <Settings2 className="mr-2 h-4 w-4" />Publish Settings
+                    <DropdownMenuItem onClick={handlePublishChapter}>
+                      <Settings2 className="mr-2 h-4 w-4" />Publish Chapter
                     </DropdownMenuItem>
                 </DropdownMenuContent>
                 </DropdownMenu>
@@ -356,6 +443,33 @@ function WriteChapterContent() {
           </div>
         )}
       </div>
+      {/* Edit Chapter Title Dialog */}
+      <Dialog open={isEditTitleOpen} onOpenChange={setIsEditTitleOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Chapter Title</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-2">
+            <Label htmlFor="chapter-title-input">Chapter Title</Label>
+            <Input
+              id="chapter-title-input"
+              value={editingTitle}
+              onChange={(e) => setEditingTitle(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleSaveTitle(); }}
+              placeholder="Enter chapter title..."
+              autoFocus
+            />
+          </div>
+          <DialogFooter className="flex gap-2 justify-end">
+            <DialogClose asChild>
+              <Button variant="outline">Cancel</Button>
+            </DialogClose>
+            <Button onClick={handleSaveTitle} disabled={!editingTitle.trim()}>
+              Save Title
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -101,3 +101,79 @@ export const reports = pgTable('reports', {
   status: text('status').notNull().default('pending'), // pending | resolved | dismissed
   createdAt: timestamp('created_at').defaultNow(),
 });
+
+// ── Comments ───────────────────────────────────────────────────────────
+export const comments = pgTable('comments', {
+  id: serial('id').primaryKey(),
+  chapterId: integer('chapter_id').notNull().references(() => chapters.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id),
+  authorName: text('author_name').notNull(),
+  authorPhoto: text('author_photo').default(''),
+  content: text('content').notNull(),
+  likes: integer('likes').notNull().default(0),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+// ── Novel Reviews ──────────────────────────────────────────────────────
+export const novelReviews = pgTable('novel_reviews', {
+  id: serial('id').primaryKey(),
+  novelId: integer('novel_id').notNull().references(() => novels.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id),
+  authorName: text('author_name').notNull(),
+  rating: integer('rating').notNull(), // 1-5
+  content: text('content').default(''),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+// ── Reading History ────────────────────────────────────────────────────
+export const readingHistory = pgTable('reading_history', {
+  id: serial('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id),
+  novelId: integer('novel_id').notNull().references(() => novels.id, { onDelete: 'cascade' }),
+  chapterId: integer('chapter_id').notNull().references(() => chapters.id, { onDelete: 'cascade' }),
+  novelTitle: text('novel_title').notNull(),
+  chapterTitle: text('chapter_title').notNull(),
+  coverImageUrl: text('cover_image_url').default(''),
+  readAt: timestamp('read_at').defaultNow(),
+});
+
+// ── Library (Bookmarks / Favorites) ───────────────────────────────────
+export const library = pgTable('library', {
+  id: serial('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id),
+  novelId: integer('novel_id').notNull().references(() => novels.id, { onDelete: 'cascade' }),
+  novelTitle: text('novel_title').notNull(),
+  coverImageUrl: text('cover_image_url').default(''),
+  authorName: text('author_name').default(''),
+  addedAt: timestamp('added_at').defaultNow(),
+});
+
+// ── Novel Follows (subscribe to novel updates) ─────────────────────────
+export const novelFollows = pgTable('novel_follows', {
+  id: serial('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id),
+  novelId: integer('novel_id').notNull().references(() => novels.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+// ── Chapter Unlocks (purchased paid chapters) ──────────────────────────
+export const chapterUnlocks = pgTable('chapter_unlocks', {
+  id: serial('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id),
+  chapterId: integer('chapter_id').notNull().references(() => chapters.id, { onDelete: 'cascade' }),
+  novelId: integer('novel_id').notNull().references(() => novels.id, { onDelete: 'cascade' }),
+  coinCost: integer('coin_cost').notNull().default(0),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+// ── Notifications ──────────────────────────────────────────────────────
+export const notifications = pgTable('notifications', {
+  id: serial('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id),
+  type: text('type').notNull(), // new_chapter | comment_reply | system
+  title: text('title').notNull(),
+  body: text('body').default(''),
+  href: text('href').default(''),
+  isRead: boolean('is_read').notNull().default(false),
+  createdAt: timestamp('created_at').defaultNow(),
+});

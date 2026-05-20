@@ -8,7 +8,7 @@ import { getTrendingNovels, getNewReleases, type Novel } from "@/actions/novels"
 function NovelCard({ novel }: { novel: Novel }) {
   return (
     <Card className="overflow-hidden hover:shadow-xl transition-shadow duration-300">
-      <Link href={`/reader/${novel.id}/chapter-1`} className="block">
+      <Link href={`/novel/${novel.id}`} className="block">
         <div className="aspect-[2/3] relative w-full">
           <Image
             src={novel.coverImageUrl || "https://placehold.co/300x450.png"}
