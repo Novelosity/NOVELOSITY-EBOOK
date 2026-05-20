@@ -42,11 +42,11 @@ function LoginContent() {
           </TabsList>
 
           <TabsContent value="login" className="flex justify-center">
-            <SignIn routing="virtual" fallbackRedirectUrl="/browse" appearance={appearance} />
+            <SignIn routing="hash" fallbackRedirectUrl="/browse" appearance={appearance} />
           </TabsContent>
 
           <TabsContent value="register" className="flex justify-center">
-            <SignUp routing="virtual" fallbackRedirectUrl="/browse" appearance={appearance} />
+            <SignUp routing="hash" fallbackRedirectUrl="/browse" appearance={appearance} />
           </TabsContent>
         </Tabs>
       </div>
