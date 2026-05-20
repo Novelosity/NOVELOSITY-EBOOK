@@ -81,6 +81,13 @@ export async function getNovel(novelId: number): Promise<Novel | null> {
   return rows.length > 0 ? (rows[0] as Novel) : null;
 }
 
+export async function incrementViews(novelId: number): Promise<void> {
+  await db
+    .update(novels)
+    .set({ views: sql`${novels.views} + 1` })
+    .where(eq(novels.id, novelId));
+}
+
 export async function getPublishedNovels(limit = 20): Promise<Novel[]> {
   const rows = await db
     .select()
