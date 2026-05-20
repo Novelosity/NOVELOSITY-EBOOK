@@ -1,22 +1,29 @@
 "use client";
 
-import { useEffect } from "react";
+import { Suspense } from "react";
 import { SignIn, SignUp } from "@clerk/nextjs";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LogIn as LogInIcon } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect } from "react";
 
-export default function LoginPage() {
+const appearance = {
+  elements: {
+    card: "shadow-none border border-border rounded-lg",
+    headerTitle: "hidden",
+    headerSubtitle: "hidden",
+  },
+};
+
+function LoginContent() {
   const { isSignedIn } = useUser();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const tab = searchParams.get("tab") === "register" ? "register" : "login";
 
   useEffect(() => {
-    document.title = "Login or Register | Novelosity";
-  }, []);
-
-  useEffect(() => {
-    if (isSignedIn) router.push('/');
+    if (isSignedIn) router.push("/browse");
   }, [isSignedIn, router]);
 
   return (
@@ -28,41 +35,29 @@ export default function LoginPage() {
           <p className="text-muted-foreground mt-1">Sign in or create a new account.</p>
         </div>
 
-        <Tabs defaultValue="login">
+        <Tabs value={tab} onValueChange={(v) => router.replace(`/login?tab=${v}`)}>
           <TabsList className="grid w-full grid-cols-2 mb-4">
             <TabsTrigger value="login">Sign In</TabsTrigger>
             <TabsTrigger value="register">Create Account</TabsTrigger>
           </TabsList>
 
           <TabsContent value="login" className="flex justify-center">
-            <SignIn
-              routing="hash"
-              fallbackRedirectUrl="/"
-              appearance={{
-                elements: {
-                  card: "shadow-none border border-border rounded-lg",
-                  headerTitle: "hidden",
-                  headerSubtitle: "hidden",
-                },
-              }}
-            />
+            <SignIn routing="hash" fallbackRedirectUrl="/browse" appearance={appearance} />
           </TabsContent>
 
           <TabsContent value="register" className="flex justify-center">
-            <SignUp
-              routing="hash"
-              fallbackRedirectUrl="/"
-              appearance={{
-                elements: {
-                  card: "shadow-none border border-border rounded-lg",
-                  headerTitle: "hidden",
-                  headerSubtitle: "hidden",
-                },
-              }}
-            />
+            <SignUp routing="hash" fallbackRedirectUrl="/browse" appearance={appearance} />
           </TabsContent>
         </Tabs>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginContent />
+    </Suspense>
   );
 }
