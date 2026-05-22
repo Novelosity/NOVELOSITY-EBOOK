@@ -216,3 +216,21 @@ export async function getChapter(chapterId: number): Promise<Chapter | null> {
   const rows = await db.select().from(chapters).where(eq(chapters.id, chapterId)).limit(1);
   return rows.length > 0 ? (rows[0] as Chapter) : null;
 }
+
+export async function getNovelsByGenre(genre: string, limit = 6): Promise<Novel[]> {
+  const rows = await db
+    .select()
+    .from(novels)
+    .where(and(eq(novels.status, 'published'), eq(novels.genre, genre)))
+    .orderBy(desc(novels.views))
+    .limit(limit);
+  return rows as Novel[];
+}
+
+export async function getPublishedGenres(): Promise<string[]> {
+  const rows = await db
+    .selectDistinct({ genre: novels.genre })
+    .from(novels)
+    .where(and(eq(novels.status, 'published'), sql`${novels.genre} != ''`));
+  return rows.map((r) => r.genre).filter(Boolean) as string[];
+}
