@@ -1,10 +1,17 @@
 import Link from 'next/link';
-import { BookOpenText } from 'lucide-react';
+import Image from 'next/image';
 
 export function Logo() {
   return (
     <Link href="/" className="flex items-center gap-2 text-sidebar-foreground hover:opacity-80 transition-opacity">
-      <BookOpenText className="h-7 w-7 flex-shrink-0" />
+      <Image
+        src="/logo.png"
+        alt="Novelosity"
+        width={36}
+        height={36}
+        className="flex-shrink-0 object-contain"
+        priority
+      />
       <span className="font-headline text-xl font-bold tracking-tight group-data-[collapsible=icon]:hidden">
         Novelosity
       </span>

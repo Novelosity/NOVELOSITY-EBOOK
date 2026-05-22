@@ -22,7 +22,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import ClientRoleProtector from "@/components/ClientRoleProtector";
 import { useUser } from "@clerk/nextjs";
 import { createNovel } from "@/actions/novels";
-import { put } from "@vercel/blob";
 import { useToast } from "@/hooks/use-toast";
 
 const novelFormSchema = z.object({
@@ -108,8 +107,14 @@ function CreateNovelContent() {
     try {
       let coverImageUrl = 'https://placehold.co/600x800.png';
       if (coverFile) {
-        const blob = await put(`covers/${user.id}/${Date.now()}_${coverFile.name}`, coverFile, { access: 'public' });
-        coverImageUrl = blob.url;
+        const fd = new FormData();
+        fd.append('file', coverFile);
+        const res = await fetch('/api/upload', { method: 'POST', body: fd });
+        if (res.ok) {
+          const data = await res.json();
+          coverImageUrl = data.url;
+        }
+        // If upload fails, we fall back to placeholder so novel creation still proceeds
       }
       const novel = await createNovel({
         title: data.bookTitle,

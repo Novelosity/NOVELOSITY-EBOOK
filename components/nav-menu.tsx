@@ -24,6 +24,7 @@ import {
   UserCog,
   ClipboardList,
   Edit3,
+  BarChart2,
 } from "lucide-react";
 
 const readerLinks = [
@@ -37,6 +38,7 @@ const readerLinks = [
 
 const authorLinks = [
   { href: "/author-dashboard", label: "Author Dashboard", icon: LayoutDashboard },
+  { href: "/author-dashboard/statistics", label: "Statistics", icon: BarChart2 },
   { href: "/author/create-novel", label: "Create Novel", icon: FilePlus },
   { href: "/tools/chapter-title-generator", label: "AI Title Generator", icon: Wand2 },
 ];

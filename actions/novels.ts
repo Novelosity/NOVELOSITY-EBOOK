@@ -34,6 +34,7 @@ export interface Chapter {
   coinCost: number;
   wordCount: number;
   status: string;
+  authorNote: string | null;
   createdAt: Date | null;
   updatedAt: Date | null;
 }
@@ -150,6 +151,7 @@ export async function createChapter(data: {
   isPaid: boolean;
   coinCost: number;
   wordCount: number;
+  authorNote?: string;
 }): Promise<Chapter> {
   const { userId } = await auth();
   if (!userId) throw new Error('Not authenticated');
@@ -171,8 +173,10 @@ export async function createChapter(data: {
 
 export async function updateChapter(
   chapterId: number,
-  data: Partial<Pick<Chapter, 'title' | 'content' | 'isPaid' | 'coinCost' | 'wordCount' | 'status'>>
+  data: Partial<Pick<Chapter, 'title' | 'content' | 'isPaid' | 'coinCost' | 'wordCount' | 'status' | 'authorNote'>>
 ): Promise<void> {
+  const { userId } = await auth();
+  if (!userId) throw new Error('Not authenticated');
   await db
     .update(chapters)
     .set({ ...data, updatedAt: new Date() })

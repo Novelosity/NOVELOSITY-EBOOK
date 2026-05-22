@@ -16,6 +16,11 @@ export const metadata: Metadata = {
     template: '%s | Novelosity',
   },
   description: 'Discover captivating novels, engage with a vibrant community of readers and authors, and unleash your creativity on Novelosity.',
+  icons: {
+    icon: '/favicon.png',
+    shortcut: '/favicon.png',
+    apple: '/favicon.png',
+  },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

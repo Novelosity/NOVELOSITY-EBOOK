@@ -53,6 +53,7 @@ export const chapters = pgTable('chapters', {
   coinCost: integer('coin_cost').notNull().default(0),
   wordCount: integer('word_count').notNull().default(0),
   status: text('status').notNull().default('draft'), // draft | published
+  authorNote: text('author_note').default(''),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
@@ -164,6 +165,17 @@ export const chapterUnlocks = pgTable('chapter_unlocks', {
   novelId: integer('novel_id').notNull().references(() => novels.id, { onDelete: 'cascade' }),
   coinCost: integer('coin_cost').notNull().default(0),
   createdAt: timestamp('created_at').defaultNow(),
+});
+
+// ── Writing Sessions (daily word tracking per novel) ──────────────────────────
+export const writingSessions = pgTable('writing_sessions', {
+  id: serial('id').primaryKey(),
+  authorId: text('author_id').notNull().references(() => users.id),
+  novelId: integer('novel_id').notNull().references(() => novels.id, { onDelete: 'cascade' }),
+  novelTitle: text('novel_title').notNull().default(''),
+  date: text('date').notNull(), // YYYY-MM-DD
+  wordsWritten: integer('words_written').notNull().default(0),
+  updatedAt: timestamp('updated_at').defaultNow(),
 });
 
 // ── Notifications ──────────────────────────────────────────────────────
