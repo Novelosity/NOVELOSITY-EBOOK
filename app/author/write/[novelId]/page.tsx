@@ -538,7 +538,7 @@ function WriteChapterContent() {
   return (
     <div className="flex h-[calc(100vh-4rem)] overflow-hidden">
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex w-64 lg:w-72 border-r flex-col shrink-0 bg-background">
+      <aside className="hidden md:flex w-64 lg:w-72 border-r flex-col shrink-0 bg-orange-50/60">
         {sidebarPanel}
       </aside>
 
@@ -546,7 +546,7 @@ function WriteChapterContent() {
       {sidebarOpen && (
         <div className="fixed inset-0 z-40 flex md:hidden">
           <div className="absolute inset-0 bg-black/40" onClick={() => setSidebarOpen(false)} />
-          <aside className="relative z-50 w-72 flex flex-col bg-background border-r h-full shadow-xl">
+          <aside className="relative z-50 w-72 flex flex-col bg-orange-50/60 border-r h-full shadow-xl">
             <div className="flex items-center justify-between p-3 border-b shrink-0">
               <span className="font-semibold text-sm">Chapters</span>
               <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(false)}>
@@ -559,13 +559,13 @@ function WriteChapterContent() {
       )}
 
       {/* Editor */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-background">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-amber-50/20">
         {selectedChapter ? (
-          <Card className="flex-1 flex flex-col rounded-none border-0 shadow-none overflow-hidden">
+          <Card className="flex-1 flex flex-col rounded-none border-0 shadow-none overflow-hidden bg-transparent">
             <CardContent className="p-0 flex flex-col flex-1 overflow-hidden">
 
               {/* Header */}
-              <div className="px-3 py-2 border-b flex items-center gap-2 bg-muted/30 shrink-0">
+              <div className="px-3 py-2 border-b flex items-center gap-2 bg-orange-50/80 shrink-0">
                 <Button
                   variant="ghost" size="icon"
                   className="md:hidden shrink-0"
@@ -621,7 +621,7 @@ function WriteChapterContent() {
               </div>
 
               {/* Formatting toolbar */}
-              <div className="px-2 py-1 border-b flex items-center gap-1 bg-muted/20 shrink-0">
+              <div className="px-2 py-1 border-b flex items-center gap-1 bg-orange-50/60 shrink-0">
                 <Button
                   variant="ghost" size="icon" className="h-8 w-8" title="Bold"
                   onClick={() => {
@@ -643,7 +643,7 @@ function WriteChapterContent() {
               </div>
 
               {/* Content textarea */}
-              <div className="flex-1 overflow-auto">
+              <div className="flex-1 overflow-auto bg-[#fffdf8]">
                 <Textarea
                   value={chapterContent}
                   onChange={(e) => {
@@ -651,12 +651,12 @@ function WriteChapterContent() {
                     markUnsaved();
                   }}
                   placeholder="Start writing your chapter here…"
-                  className="w-full h-full min-h-[200px] p-4 sm:p-6 text-base border-0 focus-visible:ring-0 focus-visible:ring-offset-0 resize-none rounded-none"
+                  className="w-full h-full min-h-[200px] p-4 sm:p-6 text-base border-0 focus-visible:ring-0 focus-visible:ring-offset-0 resize-none rounded-none bg-transparent"
                 />
               </div>
 
               {/* Author note */}
-              <div className="px-3 py-3 border-t bg-muted/10 shrink-0">
+              <div className="px-3 py-3 border-t bg-orange-50/60 shrink-0">
                 <label htmlFor="author-note" className="text-xs font-medium text-muted-foreground block mb-1.5">
                   Author Note{' '}
                   <span className="text-muted-foreground/60">(optional — saved with chapter)</span>
@@ -677,7 +677,7 @@ function WriteChapterContent() {
               </div>
 
               {/* Footer */}
-              <div className="px-3 py-3 border-t flex flex-col sm:flex-row justify-between items-center gap-3 bg-muted/30 shrink-0">
+              <div className="px-3 py-3 border-t flex flex-col sm:flex-row justify-between items-center gap-3 bg-orange-50/80 shrink-0">
                 <div className="text-sm text-muted-foreground text-center sm:text-left">
                   <span className="font-medium">{currentWordCount.toLocaleString()}</span> words
                   <span className="text-muted-foreground/60 ml-1.5 text-xs">(ideal: 600–1000)</span>
@@ -703,7 +703,7 @@ function WriteChapterContent() {
             </CardContent>
           </Card>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-8 gap-4">
+          <div className="flex-1 flex flex-col items-center justify-center text-center p-8 gap-4 bg-[#fffdf8]">
             <Button variant="outline" className="md:hidden" onClick={() => setSidebarOpen(true)}>
               <Menu className="mr-2 h-4 w-4" /> View Chapters
             </Button>
