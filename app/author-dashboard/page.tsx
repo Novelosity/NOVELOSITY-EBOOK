@@ -14,8 +14,9 @@ import {
   Eye, Users, BookText, PlusCircle, PenTool, Edit3,
   FileSignature, MoreVertical, Trash2, Settings2, BarChart2,
   Coins, Sparkles, GraduationCap, BookOpen, CalendarDays,
-  TrendingUp, ChevronRight, Lightbulb, PenLine,
+  TrendingUp, ChevronRight, Lightbulb, PenLine, Lock,
 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import ClientRoleProtector from "@/components/ClientRoleProtector";
@@ -119,6 +120,21 @@ function NovelCard({
           <StatPill icon={<PenLine className="h-3.5 w-3.5" />} value={novel.wordCount.toLocaleString()} label="Words" />
         </div>
 
+        {/* 5 000-word progress bar — shown while under the threshold */}
+        {(novel.status === "draft" || novel.status === "published") && novel.wordCount < 5000 && (
+          <div className="mt-3 space-y-1">
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <Lock className="h-3 w-3" /> Submit for Review unlocks at 5,000 words
+              </span>
+              <span className="font-medium tabular-nums">
+                {novel.wordCount.toLocaleString()} / 5,000
+              </span>
+            </div>
+            <Progress value={Math.min((novel.wordCount / 5000) * 100, 100)} className="h-1.5" />
+          </div>
+        )}
+
         {/* Actions */}
         <div className="flex flex-wrap gap-2 mt-3">
           <Button
@@ -136,16 +152,27 @@ function NovelCard({
           >
             <PenTool className="mr-1.5 h-3 w-3" /> Write Chapter
           </Button>
-          {novel.status === "published" && novel.wordCount >= 5000 && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs px-3 border-green-500 text-green-600 hover:bg-green-50"
-              onClick={onContract}
+
+          {/* Submit for Review — visible for draft/published, gated at 5 000 words */}
+          {(novel.status === "draft" || novel.status === "published") && (
+            <span
+              className="inline-flex"
+              title={novel.wordCount < 5000
+                ? `Write ${(5000 - novel.wordCount).toLocaleString()} more words to unlock submission`
+                : undefined}
             >
-              <FileSignature className="mr-1.5 h-3 w-3" /> Apply for Contract
-            </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs px-3 border-green-500 text-green-600 hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={novel.wordCount < 5000}
+                onClick={novel.wordCount >= 5000 ? onContract : undefined}
+              >
+                <FileSignature className="mr-1.5 h-3 w-3" /> Submit for Review
+              </Button>
+            </span>
           )}
+
           {novel.status === "submitted" && (
             <Button size="sm" variant="outline" className="h-7 text-xs px-3" disabled>
               <FileSignature className="mr-1.5 h-3 w-3" /> Pending Review
@@ -185,10 +212,11 @@ function AuthorDashboardContent() {
     : novels.filter((n) => (filter === "published" ? n.status === "published" : n.status === "draft"));
 
   const handleContract = async (novel: Novel) => {
+    if (novel.wordCount < 5000) return;
     try {
       await updateNovel(novel.id, { status: "submitted" });
       setNovels((prev) => prev.map((n) => n.id === novel.id ? { ...n, status: "submitted" } : n));
-      toast({ title: "Application submitted", description: `"${novel.title}" is under review.` });
+      toast({ title: "Submitted for review!", description: `"${novel.title}" has been sent to the editorial team.` });
     } catch {
       toast({ title: "Error", description: "Failed to submit.", variant: "destructive" });
     }

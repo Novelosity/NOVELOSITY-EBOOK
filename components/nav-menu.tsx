@@ -44,13 +44,14 @@ const authorLinks = [
 ];
 
 const editorLinks = [
-  { href: "/editorial-dashboard", label: "Editorial Dashboard", icon: Edit3 },
+  { href: "/editor-portal", label: "Editor Portal", icon: Edit3 },
+  { href: "/editorial-dashboard", label: "Submissions", icon: ClipboardList },
   { href: "/author-communication", label: "Author Communication", icon: MessageSquare },
-  { href: "/content-moderation", label: "Content Moderation", icon: ClipboardList },
+  { href: "/content-moderation", label: "Content Moderation", icon: ShieldCheck },
 ];
 
 const adminLinks = [
-  { href: "/admin/dashboard", label: "Admin Dashboard", icon: ShieldCheck },
+  { href: "/admin-portal", label: "Admin Portal", icon: LayoutDashboard },
   { href: "/admin/users", label: "User Management", icon: UserCog },
   { href: "/content-moderation", label: "Content Moderation", icon: ClipboardList },
 ];
